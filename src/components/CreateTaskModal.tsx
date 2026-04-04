@@ -7,17 +7,21 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
+  defaultClientId?: string;
+  defaultTitle?: string;
 }
 
-export default function CreateTaskModal({ isOpen, onClose, onCreated }: CreateTaskModalProps) {
-  const [title, setTitle] = useState('');
+export default function CreateTaskModal({ isOpen, onClose, onCreated, defaultClientId, defaultTitle }: CreateTaskModalProps) {
+  const [title, setTitle] = useState(defaultTitle || '');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('normal');
   const [agentId, setAgentId] = useState('');
   const [workflowId, setWorkflowId] = useState('');
+  const [clientId, setClientId] = useState(defaultClientId || '');
   const [executionMode, setExecutionMode] = useState<'auto' | 'api' | 'openclaw'>('auto');
   const [agents, setAgents] = useState<Agent[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowTemplate[]>([]);
+  const [clients, setClients] = useState<{ id: string; businessName: string }[]>([]);
   const [openclawAvailable, setOpenclawAvailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,9 +29,12 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }: CreateTa
     if (isOpen) {
       fetch('/api/agents').then(r => r.json()).then(setAgents);
       fetch('/api/workflows').then(r => r.json()).then(setWorkflows);
+      fetch('/api/clients').then(r => r.json()).then(setClients).catch(() => {});
       fetch('/api/agents/openclaw-status').then(r => r.json()).then(d => setOpenclawAvailable(d.available)).catch(() => setOpenclawAvailable(false));
+      if (defaultTitle) setTitle(defaultTitle);
+      if (defaultClientId) setClientId(defaultClientId);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultTitle, defaultClientId]);
 
   if (!isOpen) return null;
 
@@ -46,6 +53,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }: CreateTa
           priority,
           assigned_agent_id: agentId || undefined,
           workflow_template_id: workflowId || undefined,
+          client_id: clientId || undefined,
           execution_mode: executionMode,
         }),
       });
@@ -55,6 +63,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }: CreateTa
       setPriority('normal');
       setAgentId('');
       setWorkflowId('');
+      setClientId('');
       setExecutionMode('auto');
       onCreated();
       onClose();
@@ -112,6 +121,16 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }: CreateTa
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-white/50 uppercase tracking-wider">Client (optional)</label>
+            <select value={clientId} onChange={e => setClientId(e.target.value)} className="mt-1">
+              <option value="">No client</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.businessName}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

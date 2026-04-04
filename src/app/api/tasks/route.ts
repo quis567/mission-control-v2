@@ -26,6 +26,7 @@ export async function GET() {
       workspace_id: t.workspaceId,
       session_key: t.sessionKey,
       parent_task_id: t.parentTaskId,
+      client_id: t.clientId,
     }));
 
     return NextResponse.json(tasksWithAgent);
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
         priority: body.priority || 'normal',
         assignedAgentId: body.assigned_agent_id || null,
         workflowTemplateId: body.workflow_template_id || null,
+        clientId: body.client_id || null,
         status: body.assigned_agent_id ? 'assigned' : 'inbox',
       },
     });

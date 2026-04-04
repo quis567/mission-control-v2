@@ -21,8 +21,10 @@ model Task {
   deliverables       String    @default("[]")
   sessionKey         String?   @map("session_key")
   parentTaskId       String?   @map("parent_task_id")
+  clientId           String?   @map("client_id")
 
   activities Activity[]
+  client     Client?   @relation(fields: [clientId], references: [id])
 
   @@map("tasks")
 }
@@ -89,4 +91,148 @@ model Session {
   user User @relation(fields: [userId], references: [id])
 
   @@map("sessions")
+}
+
+// ==========================================
+// CRM & Client Management Models
+// ==========================================
+
+model Client {
+  id             String    @id @default(uuid())
+  businessName   String    @map("business_name")
+  contactName    String?   @map("contact_name")
+  email          String?
+  phone          String?
+  businessType   String?   @map("business_type")
+  city           String?
+  state          String?
+  status         String    @default("lead")
+  monthlyRevenue Float?    @map("monthly_revenue")
+  dateAcquired   DateTime? @map("date_acquired")
+  tags           String?   // JSON array
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  notes    ClientNote[]
+  websites Website[]
+  services Service[]
+  links    ClientLink[]
+  tasks    Task[]
+
+  @@map("clients")
+}
+
+model ClientNote {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_notes")
+}
+
+model Website {
+  id                 String    @id @default(uuid())
+  clientId           String    @map("client_id")
+  url                String
+  status             String    @default("development")
+  hostingProvider    String?   @map("hosting_provider")
+  domainRegistrar    String?   @map("domain_registrar")
+  domainExpiration   DateTime? @map("domain_expiration")
+  sslStatus          String?   @map("ssl_status")
+  cmsPlatform        String?   @map("cms_platform")
+  launchDate         DateTime? @map("launch_date")
+  lastUpdated        DateTime? @map("last_updated")
+  gaConnected        Boolean   @default(false) @map("ga_connected")
+  gaPropertyId       String?   @map("ga_property_id")
+  gscConnected       Boolean   @default(false) @map("gsc_connected")
+  maintenancePlan    Boolean   @default(false) @map("maintenance_plan")
+  maintenanceDetails String?   @map("maintenance_details")
+  notes              String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  seoPages SeoPage[]
+
+  @@map("websites")
+}
+
+model SeoPage {
+  id               String    @id @default(uuid())
+  websiteId        String    @map("website_id")
+  pageUrl          String    @map("page_url")
+  pageTitle        String?   @map("page_title")
+  titleLength      Int?      @map("title_length")
+  metaDescription  String?   @map("meta_description")
+  metaDescLength   Int?      @map("meta_desc_length")
+  h1Tag            String?   @map("h1_tag")
+  h1Count          Int?      @map("h1_count")
+  headingStructure String?   @map("heading_structure")
+  imagesTotal      Int?      @map("images_total")
+  imagesWithAlt    Int?      @map("images_with_alt")
+  internalLinks    Int?      @map("internal_links")
+  externalLinks    Int?      @map("external_links")
+  wordCount        Int?      @map("word_count")
+  targetKeyword    String?   @map("target_keyword")
+  keywordDensity   Float?    @map("keyword_density")
+  seoScore         Int?      @map("seo_score")
+  lastAudited      DateTime? @map("last_audited")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  website Website     @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  changes SeoChange[]
+
+  @@map("seo_pages")
+}
+
+model SeoChange {
+  id           String   @id @default(uuid())
+  seoPageId    String   @map("seo_page_id")
+  fieldChanged String?  @map("field_changed")
+  oldValue     String?  @map("old_value")
+  newValue     String?  @map("new_value")
+  changedBy    String?  @map("changed_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  seoPage SeoPage @relation(fields: [seoPageId], references: [id], onDelete: Cascade)
+
+  @@map("seo_changes")
+}
+
+model Service {
+  id              String    @id @default(uuid())
+  clientId        String    @map("client_id")
+  serviceType     String    @map("service_type")
+  status          String    @default("active")
+  billingType     String?   @map("billing_type")
+  price           Float?
+  startDate       DateTime? @map("start_date")
+  nextBillingDate DateTime? @map("next_billing_date")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("services")
+}
+
+model ClientLink {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  category  String?
+  label     String
+  url       String?
+  username  String?
+  password  String?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_links")
 }
