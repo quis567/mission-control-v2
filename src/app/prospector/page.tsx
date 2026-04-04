@@ -28,6 +28,7 @@ interface Lead {
   businessName: string;
   tradeType: string;
   contactName: string | null;
+  email: string | null;
   phone: string;
   website: string;
   googleRating: number;
@@ -191,6 +192,7 @@ export default function ProspectorPage() {
       'Business Name': l.businessName,
       'Trade/Service': l.tradeType,
       'Contact': l.contactName || '',
+      'Email': l.email || '',
       'Phone': l.phone || '',
       'Website': l.website || 'N/A',
       'Address': l.address || '',
@@ -259,7 +261,7 @@ export default function ProspectorPage() {
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider">Number of Leads</label>
             <select value={count} onChange={e => setCount(Number(e.target.value))} className="mt-1 text-sm">
-              <option value={10}>10</option><option value={15}>15</option><option value={20}>20</option><option value={25}>25</option>
+              <option value={5}>5</option><option value={10}>10</option><option value={15}>15</option><option value={20}>20</option><option value={25}>25</option>
             </select>
           </div>
         </div>
@@ -349,6 +351,7 @@ export default function ProspectorPage() {
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Trade</th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Contact</th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Phone</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Email</th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Website</th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Rating</th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Yrs</th>
@@ -382,6 +385,7 @@ export default function ProspectorPage() {
                       <td className="py-3 px-2 text-white/50">{lead.tradeType}</td>
                       <td className="py-3 px-2 text-white/50">{lead.contactName || '—'}</td>
                       <td className="py-3 px-2 text-white/50">{lead.phone || '—'}</td>
+                      <td className="py-3 px-2 text-white/50">{lead.email || '—'}</td>
                       <td className="py-3 px-2">
                         {lead.website && lead.website !== 'N/A' ? (
                           <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-accent/70 hover:text-accent truncate block max-w-[150px]">{lead.website.replace(/^https?:\/\//, '')}</a>

@@ -123,6 +123,7 @@ For each business, find:
 - Business name
 - Type of trade/service
 - Contact name (owner/manager if findable, otherwise null)
+- Email address (if findable on their website or listings, otherwise null)
 - Phone number
 - Website URL (or "N/A" if none)
 - Google rating (number, or 0)
@@ -135,7 +136,7 @@ For each business, find:
 - Online presence notes (1 sentence)
 
 Respond ONLY with a JSON array. No markdown, no code fences. Each object must have these exact fields:
-businessName, tradeType, contactName, phone, website, googleRating, address, city, state, description, servicesOffered, yearsInBusiness, websiteQuality, onlinePresenceNotes`,
+businessName, tradeType, contactName, email, phone, website, googleRating, address, city, state, description, servicesOffered, yearsInBusiness, websiteQuality, onlinePresenceNotes`,
             }],
           }),
         }, 120000); // 120s timeout for search
