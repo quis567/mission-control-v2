@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 
 function calculateLeadScore(lead: any): number {
@@ -28,17 +28,20 @@ function scoreLabel(score: number): string {
   return 'Cool';
 }
 
-export async function POST(req: NextRequest) {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const { area, businessTypes, count } = await req.json();
-    if (!area || !businessTypes?.length) {
-      return NextResponse.json({ error: 'area and businessTypes required' }, { status: 400 });
-    }
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-    const typesStr = businessTypes.join(', ');
-    const searchCount = Math.min(count || 15, 25);
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+async function generatePitch(lead: any): Promise<{ salesPitch: string; recommendedPackage: string; pitchAngle: string }> {
+  try {
+    const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,122 +50,168 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        max_tokens: 512,
         messages: [{
           role: 'user',
-          content: `You are a lead generation researcher for a web design and SEO agency called TruePath Studios that serves contractor and trade businesses.
+          content: `You are a sales expert for TruePath Studios, a web design and SEO agency for contractors.
+
+Write a 2-sentence sales pitch for this business and recommend a package.
+
+Business: ${lead.businessName} (${lead.tradeType})
+Website: ${lead.website || 'None'}
+Website Quality: ${lead.websiteQuality}
+Google Rating: ${lead.googleRating || 'N/A'}
+Location: ${lead.city}, ${lead.state}
+
+Packages: Starter $500/mo (website+maintenance+basic SEO), Growth $1000/mo (+full SEO+Google Business), Premium $2000/mo (+content+social media)
+
+Respond ONLY with JSON: {"salesPitch":"...","recommendedPackage":"Starter|Growth|Premium","pitchAngle":"..."}`,
+        }],
+      }),
+    }, 30000); // 30s timeout per pitch
+
+    if (!res.ok) return { salesPitch: '', recommendedPackage: 'Starter', pitchAngle: '' };
+
+    const data = await res.json();
+    const text = data.content?.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('') || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]);
+  } catch { /* timeout or parse error */ }
+  return { salesPitch: '', recommendedPackage: 'Starter', pitchAngle: '' };
+}
+
+export async function POST(req: NextRequest) {
+  const { area, businessTypes, count } = await req.json();
+  if (!area || !businessTypes?.length) {
+    return new Response(JSON.stringify({ error: 'area and businessTypes required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  const typesStr = businessTypes.join(', ');
+  const searchCount = Math.min(count || 15, 25);
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: any) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+
+      try {
+        send('status', { message: `Searching for ${typesStr} in ${area}...` });
+
+        // Step 1: Find businesses
+        const searchRes = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY!,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 8000,
+            tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+            messages: [{
+              role: 'user',
+              content: `You are a lead generation researcher for a web design and SEO agency called TruePath Studios.
 
 Search for ${searchCount} ${typesStr} businesses in ${area}.
 
 For each business, find:
 - Business name
 - Type of trade/service
+- Contact name (owner/manager if findable, otherwise null)
 - Phone number
-- Website URL (or note "N/A" if they don't have one)
-- Google rating (number, or 0 if not found)
-- Address/location
+- Website URL (or "N/A" if none)
+- Google rating (number, or 0)
+- Address
 - City and state
 - Brief description (1-2 sentences)
 - Services they offer (comma-separated)
-- Assessment of their current website quality: None, Basic, Moderate, Good, or Professional
-- Notes about their online presence (1 sentence)
+- Years in business (estimate, or 0)
+- Website quality: None, Basic, Moderate, Good, or Professional
+- Online presence notes (1 sentence)
 
-Respond ONLY with a JSON array. No markdown, no code fences, just the raw JSON array. Each object must have these exact fields:
-businessName, tradeType, phone, website, googleRating, address, city, state, description, servicesOffered, websiteQuality, onlinePresenceNotes`,
-        }],
-      }),
-    });
+Respond ONLY with a JSON array. No markdown, no code fences. Each object must have these exact fields:
+businessName, tradeType, contactName, phone, website, googleRating, address, city, state, description, servicesOffered, yearsInBusiness, websiteQuality, onlinePresenceNotes`,
+            }],
+          }),
+        }, 60000); // 60s timeout for search
 
-    if (!response.ok) {
-      const err = await response.text();
-      return NextResponse.json({ error: `Anthropic API error: ${err}` }, { status: 500 });
-    }
+        if (!searchRes.ok) {
+          send('error', { message: 'Search API failed. Click Retry to try again.' });
+          controller.close();
+          return;
+        }
 
-    const data = await response.json();
+        const searchData = await searchRes.json();
+        const textContent = searchData.content?.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('') || '';
 
-    // Extract text from response content blocks
-    const textContent = data.content
-      ?.filter((b: any) => b.type === 'text')
-      .map((b: any) => b.text)
-      .join('') || '';
+        let leads: any[] = [];
+        try {
+          const jsonMatch = textContent.match(/\[[\s\S]*\]/);
+          if (jsonMatch) leads = JSON.parse(jsonMatch[0]);
+        } catch {
+          send('error', { message: 'Failed to parse search results. Click Retry.' });
+          controller.close();
+          return;
+        }
 
-    let leads: any[] = [];
-    try {
-      const jsonMatch = textContent.match(/\[[\s\S]*\]/);
-      if (jsonMatch) leads = JSON.parse(jsonMatch[0]);
-    } catch {
-      return NextResponse.json({ error: 'Failed to parse lead data', raw: textContent }, { status: 500 });
-    }
+        send('status', { message: `Found ${leads.length} businesses. Scoring and generating pitches...` });
 
-    // Score each lead and generate pitches
-    const scoredLeads = leads.map((lead: any) => {
-      const leadScore = calculateLeadScore(lead);
-      return {
-        ...lead,
-        leadScore,
-        scoreLabel: scoreLabel(leadScore),
-      };
-    });
+        // Step 2: Score each lead and generate pitches one at a time
+        const allResults: any[] = [];
+        for (let i = 0; i < leads.length; i++) {
+          const lead = leads[i];
+          const leadScore = calculateLeadScore(lead);
 
-    // Generate sales pitches in batch
-    const pitchResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: `You are a sales expert for TruePath Studios, a web design and SEO agency specializing in contractor/trade businesses.
+          send('status', { message: `Generating pitch for ${lead.businessName} (${i + 1}/${leads.length})...` });
 
-For each business below, write a 2-sentence custom sales pitch and recommend a package (Starter $500/mo, Growth $1000/mo, or Premium $2000/mo).
+          const pitch = await generatePitch(lead);
 
-Businesses:
-${scoredLeads.map((l: any, i: number) => `${i + 1}. ${l.businessName} (${l.tradeType}) - Website: ${l.website || 'None'} - Quality: ${l.websiteQuality} - Rating: ${l.googleRating}`).join('\n')}
+          const result = {
+            ...lead,
+            leadScore,
+            scoreLabel: scoreLabel(leadScore),
+            ...pitch,
+            id: i + 1,
+          };
 
-Respond ONLY with a JSON array where each object has: salesPitch, recommendedPackage, pitchAngle. Match the order of businesses above.`,
-        }],
-      }),
-    });
+          allResults.push(result);
+          send('lead', result);
+        }
 
-    let pitches: any[] = [];
-    if (pitchResponse.ok) {
-      const pitchData = await pitchResponse.json();
-      const pitchText = pitchData.content?.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('') || '';
-      try {
-        const match = pitchText.match(/\[[\s\S]*\]/);
-        if (match) pitches = JSON.parse(match[0]);
-      } catch { /* */ }
-    }
+        // Save search to history
+        try {
+          await prisma.prospectorSearch.create({
+            data: {
+              area,
+              businessTypes: JSON.stringify(businessTypes),
+              count: searchCount,
+              resultsCount: allResults.length,
+              results: JSON.stringify(allResults),
+            },
+          });
+        } catch { /* non-critical */ }
 
-    const results = scoredLeads.map((lead: any, i: number) => ({
-      ...lead,
-      salesPitch: pitches[i]?.salesPitch || '',
-      recommendedPackage: pitches[i]?.recommendedPackage || 'Starter',
-      pitchAngle: pitches[i]?.pitchAngle || '',
-    }));
+        send('done', { total: allResults.length });
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          send('error', { message: 'Search timed out after 60 seconds. Click Retry to try again.' });
+        } else {
+          send('error', { message: `Error: ${String(err)}. Click Retry.` });
+        }
+      } finally {
+        controller.close();
+      }
+    },
+  });
 
-    // Sort by score descending
-    results.sort((a: any, b: any) => b.leadScore - a.leadScore);
-
-    // Save search to history
-    await prisma.prospectorSearch.create({
-      data: {
-        area,
-        businessTypes: JSON.stringify(businessTypes),
-        count: searchCount,
-        resultsCount: results.length,
-        results: JSON.stringify(results),
-      },
-    });
-
-    return NextResponse.json({ leads: results, total: results.length });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }

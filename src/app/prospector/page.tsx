@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const BUSINESS_TYPES = [
   'Roofer', 'Plumber', 'Electrician', 'General Contractor', 'HVAC',
@@ -24,8 +24,10 @@ const WEB_GRADE: Record<string, string> = {
 };
 
 interface Lead {
+  id: number;
   businessName: string;
   tradeType: string;
+  contactName: string | null;
   phone: string;
   website: string;
   googleRating: number;
@@ -34,6 +36,7 @@ interface Lead {
   state: string;
   description: string;
   servicesOffered: string;
+  yearsInBusiness: number;
   websiteQuality: string;
   onlinePresenceNotes: string;
   leadScore: number;
@@ -51,34 +54,21 @@ export default function ProspectorPage() {
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [expandedLead, setExpandedLead] = useState<string | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Set<number>>(new Set());
   const [adding, setAdding] = useState(false);
   const [addResult, setAddResult] = useState<any>(null);
-  const [recentSearches, setRecentSearches] = useState<any[]>([]);
+  const [error, setError] = useState('');
+  const [expandedLead, setExpandedLead] = useState<number | null>(null);
 
-  useEffect(() => {
-    // We'd need an API for this, but we can skip for now
-  }, []);
-
-  const toggleType = (t: string) => {
-    setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
-  };
+  const toggleType = (t: string) => setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const toggleSelectLead = (i: number) => {
-    setSelectedLeads(prev => {
-      const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
-      return next;
-    });
+    setSelectedLeads(prev => { const next = new Set(prev); next.has(i) ? next.delete(i) : next.add(i); return next; });
   };
 
   const selectAll = () => {
-    if (selectedLeads.size === leads.length) {
-      setSelectedLeads(new Set());
-    } else {
-      setSelectedLeads(new Set(leads.map((_, i) => i)));
-    }
+    if (selectedLeads.size === leads.length) setSelectedLeads(new Set());
+    else setSelectedLeads(new Set(leads.map((_, i) => i)));
   };
 
   const handleSearch = async () => {
@@ -90,19 +80,8 @@ export default function ProspectorPage() {
     setLeads([]);
     setAddResult(null);
     setSelectedLeads(new Set());
-
-    const statusMessages = [
-      `Searching for ${types.join(', ')} in ${area}...`,
-      'Reviewing online presence...',
-      'Scoring leads...',
-      'Generating sales pitches...',
-    ];
-    let msgIdx = 0;
-    setSearchStatus(statusMessages[0]);
-    const interval = setInterval(() => {
-      msgIdx = Math.min(msgIdx + 1, statusMessages.length - 1);
-      setSearchStatus(statusMessages[msgIdx]);
-    }, 4000);
+    setError('');
+    setSearchStatus('Starting search...');
 
     try {
       const res = await fetch('/api/prospector/search', {
@@ -110,19 +89,45 @@ export default function ProspectorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ area: area.trim(), businessTypes: types, count }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setLeads(data.leads || []);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setSearchStatus(`Error: ${err.error || 'Search failed'}`);
+
+      if (!res.ok || !res.body) {
+        setError('Search request failed. Click Retry.');
+        setSearching(false);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let eventType = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith('data: ') && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (eventType === 'status') setSearchStatus(data.message);
+              else if (eventType === 'lead') setLeads(prev => [...prev, data]);
+              else if (eventType === 'error') { setError(data.message); setSearching(false); return; }
+              else if (eventType === 'done') setSearchStatus(`Complete — ${data.total} leads found`);
+            } catch { /* skip malformed */ }
+            eventType = '';
+          }
+        }
       }
     } catch (e) {
-      setSearchStatus(`Error: ${String(e)}`);
+      setError(`Connection error: ${String(e)}. Click Retry.`);
     } finally {
-      clearInterval(interval);
       setSearching(false);
-      setSearchStatus('');
     }
   };
 
@@ -142,13 +147,72 @@ export default function ProspectorPage() {
         setAddResult(data);
         setSelectedLeads(new Set());
       }
-    } catch { /* */ } finally {
-      setAdding(false);
-    }
+    } catch { /* */ } finally { setAdding(false); }
+  };
+
+  const handleDownloadXlsx = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+
+    // Main data sheet
+    const wsData = leads.map((l, i) => ({
+      'ID': i + 1,
+      'Business Name': l.businessName,
+      'Trade/Service': l.tradeType,
+      'Contact': l.contactName || '',
+      'Phone': l.phone || '',
+      'Website': l.website || 'N/A',
+      'Address': l.address || '',
+      'City': l.city || '',
+      'State': l.state || '',
+      'Google Rating': l.googleRating || 0,
+      'Years in Business': l.yearsInBusiness || 0,
+      'Services Offered': l.servicesOffered || '',
+      'Website Quality': l.websiteQuality || '',
+      'Online Presence Notes': l.onlinePresenceNotes || '',
+      'Business Summary': l.description || '',
+      'Sales Pitch': l.salesPitch || '',
+      'Recommended Package': l.recommendedPackage || '',
+      'Pitch Angle': l.pitchAngle || '',
+      'Lead Score': l.leadScore,
+      'Score Label': l.scoreLabel,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(wsData);
+
+    // Column widths
+    ws['!cols'] = [
+      { wch: 4 }, { wch: 25 }, { wch: 18 }, { wch: 18 }, { wch: 15 },
+      { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 6 }, { wch: 12 },
+      { wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 35 }, { wch: 40 },
+      { wch: 50 }, { wch: 16 }, { wch: 30 }, { wch: 10 }, { wch: 8 },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+
+    // Email Templates sheet
+    const emailData = [
+      {
+        'Template': 'No Website Outreach',
+        'Subject': `${area} businesses need websites — let's talk`,
+        'Body': `Hi [Contact Name],\n\nI was researching [Trade Type] businesses in ${area} and noticed [Business Name] doesn't have a website yet. In today's market, over 80% of customers search online before calling — which means you might be missing out on a lot of local leads.\n\nAt TruePath Studios, we specialize in building websites specifically for contractor and trade businesses like yours. Our clients typically see a significant increase in phone calls within the first 60 days.\n\nWe offer a Starter package at $500/month that includes:\n• Professional 5-page responsive website\n• Monthly maintenance and updates\n• Basic local SEO to get you showing up in Google\n\nWould you be open to a quick 15-minute call this week? I'd love to show you what we could build for [Business Name].\n\nBest,\nTruePath Studios\nwww.truepathstudios.com`,
+      },
+      {
+        'Template': 'Website Improvement Outreach',
+        'Subject': `Quick idea to get more leads for [Business Name]`,
+        'Body': `Hi [Contact Name],\n\nI came across [Business Name]'s website while researching [Trade Type] businesses in ${area}. Your business looks great, and I noticed a few opportunities that could help you get even more leads online.\n\nA few things I noticed:\n• [Specific observation about their website — mobile responsiveness, speed, SEO]\n• Your Google Business listing could be optimized to show up more in local searches\n• There are some quick SEO wins that could boost your visibility\n\nAt TruePath Studios, we specialize in helping contractor and trade businesses improve their online presence. Our Growth package ($1,000/month) includes full website optimization, ongoing SEO, and Google Business Profile management.\n\nWould you be interested in a free website audit? Takes about 5 minutes and I can show you exactly where the opportunities are.\n\nBest,\nTruePath Studios\nwww.truepathstudios.com`,
+      },
+    ];
+
+    const ws2 = XLSX.utils.json_to_sheet(emailData);
+    ws2['!cols'] = [{ wch: 28 }, { wch: 50 }, { wch: 100 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Email Templates');
+
+    XLSX.writeFile(wb, `TruePath_Leads_${area.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-full mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-light tracking-wide text-white/90">Lead Prospector</h1>
         <p className="text-sm text-white/40 mt-1">Find contractor businesses and add them to your pipeline</p>
@@ -159,20 +223,12 @@ export default function ProspectorPage() {
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider">Target Area</label>
-            <input
-              value={area}
-              onChange={e => setArea(e.target.value)}
-              placeholder="e.g. Winter Garden, FL or Orlando, FL"
-              className="mt-1 text-sm"
-            />
+            <input value={area} onChange={e => setArea(e.target.value)} placeholder="e.g. Winter Garden, FL" className="mt-1 text-sm" />
           </div>
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider">Number of Leads</label>
             <select value={count} onChange={e => setCount(Number(e.target.value))} className="mt-1 text-sm">
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={20}>20</option>
-              <option value={25}>25</option>
+              <option value={10}>10</option><option value={15}>15</option><option value={20}>20</option><option value={25}>25</option>
             </select>
           </div>
         </div>
@@ -181,40 +237,40 @@ export default function ProspectorPage() {
           <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Business Types</label>
           <div className="flex flex-wrap gap-2">
             {BUSINESS_TYPES.map(t => (
-              <button
-                key={t}
-                onClick={() => toggleType(t)}
+              <button key={t} onClick={() => toggleType(t)}
                 className={`px-3 py-1.5 rounded-lg text-xs border transition-all duration-200
                   ${selectedTypes.includes(t) ? 'bg-accent/20 border-accent/30 text-accent' : 'border-white/10 text-white/40 hover:bg-white/5'}`}
-              >
-                {t}
-              </button>
+              >{t}</button>
             ))}
-            <input
-              value={customType}
-              onChange={e => setCustomType(e.target.value)}
-              placeholder="Custom type..."
-              className="px-3 py-1.5 rounded-lg text-xs border border-white/10 bg-transparent text-white/60 w-32"
-            />
+            <input value={customType} onChange={e => setCustomType(e.target.value)} placeholder="Custom..." className="px-3 py-1.5 rounded-lg text-xs border border-white/10 bg-transparent text-white/60 w-28" />
           </div>
         </div>
 
-        <button
-          onClick={handleSearch}
-          disabled={searching || !area.trim() || (selectedTypes.length === 0 && !customType.trim())}
-          className="px-6 py-3 rounded-xl bg-accent/20 border border-accent/30 text-accent font-medium hover:bg-accent/30 transition-all duration-200 glow-accent disabled:opacity-40"
-        >
+        <button onClick={handleSearch} disabled={searching || !area.trim() || (selectedTypes.length === 0 && !customType.trim())}
+          className="px-6 py-3 rounded-xl bg-accent/20 border border-accent/30 text-accent font-medium hover:bg-accent/30 transition-all duration-200 glow-accent disabled:opacity-40">
           {searching ? 'Searching...' : 'Find Leads'}
         </button>
       </div>
 
-      {/* Loading */}
-      {searching && (
-        <div className="glass p-8 mb-6 text-center">
-          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
-            <div className="h-full bg-accent/40 rounded-full animate-pulse" style={{ width: '60%' }} />
-          </div>
+      {/* Status */}
+      {(searching || searchStatus) && (
+        <div className="glass p-4 mb-6">
+          {searching && (
+            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-3">
+              <div className="h-full bg-accent/40 rounded-full transition-all duration-1000" style={{ width: leads.length > 0 ? `${Math.min((leads.length / count) * 100, 95)}%` : '15%' }} />
+            </div>
+          )}
           <p className="text-sm text-white/60">{searchStatus}</p>
+        </div>
+      )}
+
+      {/* Error with Retry */}
+      {error && (
+        <div className="glass p-4 mb-6 border border-red-400/20">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-red-400">{error}</p>
+            <button onClick={handleSearch} className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-xs hover:bg-accent/30">Retry</button>
+          </div>
         </div>
       )}
 
@@ -226,121 +282,136 @@ export default function ProspectorPage() {
         </div>
       )}
 
-      {/* Results */}
+      {/* Results Table */}
       {leads.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm uppercase tracking-wider text-white/40">{leads.length} Leads Found</h2>
             <div className="flex gap-2">
-              <button onClick={selectAll} className="text-xs text-white/40 hover:text-white/60">
+              <button onClick={handleDownloadXlsx} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
+                Download Spreadsheet
+              </button>
+              <button onClick={selectAll} className="text-xs text-white/40 hover:text-white/60 px-3 py-1.5">
                 {selectedLeads.size === leads.length ? 'Deselect All' : 'Select All'}
               </button>
               {selectedLeads.size > 0 && (
-                <button
-                  onClick={() => handleAddToPipeline(Array.from(selectedLeads))}
-                  disabled={adding}
-                  className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40"
-                >
+                <button onClick={() => handleAddToPipeline(Array.from(selectedLeads))} disabled={adding}
+                  className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40">
                   {adding ? 'Adding...' : `Add ${selectedLeads.size} to Pipeline`}
                 </button>
               )}
             </div>
           </div>
 
-          <div className="space-y-3">
-            {leads.map((lead, i) => {
-              const isExpanded = expandedLead === lead.businessName;
-              const isSelected = selectedLeads.has(i);
-              const wasAdded = addResult?.results?.find((r: any) => r.businessName === lead.businessName);
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-3 px-2 text-white/30 font-medium w-8">
+                    <input type="checkbox" checked={selectedLeads.size === leads.length && leads.length > 0} onChange={selectAll} className="accent-cyan-500" />
+                  </th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">ID</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Business Name</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Trade</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Contact</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Phone</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Website</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Rating</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Yrs</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Quality</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium">Score</th>
+                  <th className="text-left py-3 px-2 text-white/30 font-medium w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map((lead, i) => {
+                  const isSelected = selectedLeads.has(i);
+                  const isExpanded = expandedLead === i;
+                  const wasAdded = addResult?.results?.find((r: any) => r.businessName === lead.businessName);
 
-              return (
-                <div key={i} className={`glass p-5 transition-all duration-200 ${isSelected ? 'ring-1 ring-accent/30' : ''}`}>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelectLead(i)}
-                      className="w-4 h-4 rounded accent-cyan-500"
-                    />
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium text-white/90">{lead.businessName}</h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-lg ${SCORE_BADGE[lead.scoreLabel] || ''}`}>
-                          {lead.scoreLabel} ({lead.leadScore})
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-lg ${WEB_GRADE[lead.websiteQuality] || 'text-white/30 bg-white/5'}`}>
-                          {lead.websiteQuality}
-                        </span>
+                  return (
+                    <tr key={i} className={`border-b border-white/5 hover:bg-white/5 transition-all ${isSelected ? 'bg-accent/5' : ''}`}>
+                      <td className="py-3 px-2">
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelectLead(i)} className="accent-cyan-500" />
+                      </td>
+                      <td className="py-3 px-2 text-white/30">{lead.id}</td>
+                      <td className="py-3 px-2">
+                        <button onClick={() => setExpandedLead(isExpanded ? null : i)} className="text-white/80 hover:text-accent text-left">
+                          {lead.businessName}
+                        </button>
                         {wasAdded && (
-                          <span className={`text-xs px-2 py-0.5 rounded-lg ${wasAdded.status === 'added' ? 'text-emerald-400 bg-emerald-400/10' : 'text-amber-400 bg-amber-400/10'}`}>
-                            {wasAdded.status === 'added' ? 'Added' : 'Duplicate'}
+                          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${wasAdded.status === 'added' ? 'text-emerald-400 bg-emerald-400/10' : 'text-amber-400 bg-amber-400/10'}`}>
+                            {wasAdded.status === 'added' ? 'Added' : 'Dup'}
                           </span>
                         )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-white/40">
-                        <span>{lead.tradeType}</span>
-                        <span>{lead.city}, {lead.state}</span>
-                        {lead.phone && <span>{lead.phone}</span>}
-                        {lead.googleRating > 0 && <span>{'★'.repeat(Math.round(lead.googleRating))} {lead.googleRating}</span>}
-                      </div>
-                    </div>
-
-                    {lead.website && lead.website !== 'N/A' ? (
-                      <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent/80 shrink-0">Visit Site</a>
-                    ) : (
-                      <span className="text-xs text-red-400/60 bg-red-400/10 px-2 py-0.5 rounded shrink-0">No Website</span>
-                    )}
-
-                    <button
-                      onClick={() => setExpandedLead(isExpanded ? null : lead.businessName)}
-                      className="text-xs text-white/30 hover:text-white/60 shrink-0"
-                    >
-                      {isExpanded ? 'Hide' : 'Details'}
-                    </button>
-
-                    {!wasAdded && (
-                      <button
-                        onClick={() => handleAddToPipeline([i])}
-                        disabled={adding}
-                        className="px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-accent text-xs hover:bg-accent/20 transition-all disabled:opacity-40 shrink-0"
-                      >
-                        + Pipeline
-                      </button>
-                    )}
-                  </div>
-
-                  {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-white/30 mb-1">Description</p>
-                        <p className="text-sm text-white/60">{lead.description}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-white/30 mb-1">Online Presence</p>
-                        <p className="text-sm text-white/60">{lead.onlinePresenceNotes}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-white/30 mb-1">Services</p>
-                        <p className="text-sm text-white/60">{lead.servicesOffered}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-white/30 mb-1">Recommended Package</p>
-                        <p className="text-sm text-accent">{lead.recommendedPackage}</p>
-                      </div>
-                      {lead.salesPitch && (
-                        <div className="col-span-2">
-                          <p className="text-xs text-white/30 mb-1">AI Sales Pitch</p>
-                          <p className="text-sm text-white/70 italic">&ldquo;{lead.salesPitch}&rdquo;</p>
-                          {lead.pitchAngle && <p className="text-xs text-white/30 mt-1">Angle: {lead.pitchAngle}</p>}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      </td>
+                      <td className="py-3 px-2 text-white/50">{lead.tradeType}</td>
+                      <td className="py-3 px-2 text-white/50">{lead.contactName || '—'}</td>
+                      <td className="py-3 px-2 text-white/50">{lead.phone || '—'}</td>
+                      <td className="py-3 px-2">
+                        {lead.website && lead.website !== 'N/A' ? (
+                          <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-accent/70 hover:text-accent truncate block max-w-[150px]">{lead.website.replace(/^https?:\/\//, '')}</a>
+                        ) : (
+                          <span className="text-red-400/60">No Website</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-white/50">{lead.googleRating > 0 ? `${lead.googleRating}★` : '—'}</td>
+                      <td className="py-3 px-2 text-white/50">{lead.yearsInBusiness > 0 ? lead.yearsInBusiness : '—'}</td>
+                      <td className="py-3 px-2">
+                        <span className={`px-1.5 py-0.5 rounded ${WEB_GRADE[lead.websiteQuality] || 'text-white/30 bg-white/5'}`}>{lead.websiteQuality}</span>
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className={`px-1.5 py-0.5 rounded ${SCORE_BADGE[lead.scoreLabel] || ''}`}>{lead.leadScore}</span>
+                      </td>
+                      <td className="py-3 px-2">
+                        {!wasAdded && (
+                          <button onClick={() => handleAddToPipeline([i])} disabled={adding} className="text-accent/60 hover:text-accent">+</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+
+          {/* Expanded Detail */}
+          {expandedLead !== null && leads[expandedLead] && (
+            <div className="glass p-6 mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-white/80">{leads[expandedLead].businessName}</h3>
+                <button onClick={() => setExpandedLead(null)} className="text-xs text-white/30 hover:text-white/60">Close</button>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-white/30 mb-1">Address</p>
+                  <p className="text-white/60">{leads[expandedLead].address}, {leads[expandedLead].city}, {leads[expandedLead].state}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30 mb-1">Services Offered</p>
+                  <p className="text-white/60">{leads[expandedLead].servicesOffered}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30 mb-1">Business Summary</p>
+                  <p className="text-white/60">{leads[expandedLead].description}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30 mb-1">Online Presence</p>
+                  <p className="text-white/60">{leads[expandedLead].onlinePresenceNotes}</p>
+                </div>
+                {leads[expandedLead].salesPitch && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-white/30 mb-1">AI Sales Pitch</p>
+                    <p className="text-white/70 italic">&ldquo;{leads[expandedLead].salesPitch}&rdquo;</p>
+                    <div className="flex gap-4 mt-2 text-xs">
+                      <span className="text-accent">Package: {leads[expandedLead].recommendedPackage}</span>
+                      {leads[expandedLead].pitchAngle && <span className="text-white/30">Angle: {leads[expandedLead].pitchAngle}</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
