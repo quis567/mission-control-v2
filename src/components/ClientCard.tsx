@@ -5,6 +5,7 @@ import Link from 'next/link';
 const STATUS_COLORS: Record<string, string> = {
   lead: 'text-sky-400 bg-sky-400/10',
   prospect: 'text-amber-400 bg-amber-400/10',
+  proposal: 'text-blue-400 bg-blue-400/10',
   active: 'text-emerald-400 bg-emerald-400/10',
   paused: 'text-orange-400 bg-orange-400/10',
   churned: 'text-red-400 bg-red-400/10',
