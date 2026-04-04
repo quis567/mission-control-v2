@@ -18,6 +18,10 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Mission Control v2 — TruePath Studios",
   description: "Business Operations Orchestration Platform",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

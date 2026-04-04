@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -40,9 +41,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center" style={{ marginLeft: '-5rem' }}>
       <div className="glass-elevated p-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-accent/20 flex items-center justify-center mx-auto mb-4">
-            <span className="text-accent font-bold text-xl">MC</span>
-          </div>
+          <Image
+            src="/images/Logo.png"
+            alt="TruePath Studios"
+            width={240}
+            height={70}
+            className="mx-auto mb-4 brightness-0 invert"
+            priority
+          />
           <h1 className="text-2xl font-light tracking-wide text-white/90">Mission Control</h1>
           <p className="text-sm text-white/40 mt-1">TruePath Studios</p>
         </div>

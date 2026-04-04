@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 
@@ -25,8 +26,14 @@ export default function Sidebar() {
 
   return (
     <nav className="fixed left-0 top-0 h-screen w-20 glass-subtle flex flex-col items-center py-6 gap-2 z-50">
-      <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center mb-6">
-        <span className="text-accent font-bold text-lg">MC</span>
+      <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-6 overflow-hidden">
+        <Image
+          src="/images/Logo.png"
+          alt="TruePath Studios"
+          width={36}
+          height={36}
+          className="brightness-0 invert object-contain"
+        />
       </div>
 
       {navItems.map(({ href, icon: Icon, label }) => {
