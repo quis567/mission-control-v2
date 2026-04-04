@@ -11,12 +11,9 @@ export default function SeoDashboardPage() {
   const [website, setWebsite] = useState<any>(null);
   const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addingPage, setAddingPage] = useState(false);
-  const [newPage, setNewPage] = useState({ pageUrl: '', pageTitle: '', metaDescription: '', h1Tag: '', h1Count: 1, wordCount: 0, targetKeyword: '', imagesTotal: 0, imagesWithAlt: 0, internalLinks: 0, externalLinks: 0 });
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<any>(null);
   const [auditResult, setAuditResult] = useState<any>(null);
-  const [auditLoading, setAuditLoading] = useState(false);
   const [editingPage, setEditingPage] = useState<string | null>(null);
   const [competitorModal, setCompetitorModal] = useState(false);
   const [competitorUrl, setCompetitorUrl] = useState('');
@@ -24,7 +21,9 @@ export default function SeoDashboardPage() {
   const [competitorResult, setCompetitorResult] = useState<any>(null);
   const [crawling, setCrawling] = useState(false);
   const [crawlResult, setCrawlResult] = useState<any>(null);
-  const [crawlHistory, setCrawlHistory] = useState<any[]>([]);
+  const [crawlProgress, setCrawlProgress] = useState('');
+  const [lastCrawled, setLastCrawled] = useState<string | null>(null);
+  const [expandedPage, setExpandedPage] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const [wRes, sRes] = await Promise.all([
@@ -32,16 +31,27 @@ export default function SeoDashboardPage() {
       fetch(`/api/websites/${websiteId}/seo`),
     ]);
     if (!wRes.ok) { router.push('/websites'); return; }
-    setWebsite(await wRes.json());
-    setPages(await sRes.json());
+    const websiteData = await wRes.json();
+    const pagesData = await sRes.json();
+    setWebsite(websiteData);
+    setPages(pagesData);
+    // Find last crawled date from pages
+    if (pagesData.length > 0) {
+      const dates = pagesData.map((p: any) => p.lastAudited).filter(Boolean);
+      if (dates.length > 0) {
+        const latest = new Date(Math.max(...dates.map((d: string) => new Date(d).getTime())));
+        setLastCrawled(latest.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }));
+      }
+    }
     setLoading(false);
   }, [websiteId, router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleCrawl = async () => {
+  const handleFullSiteAudit = async () => {
     setCrawling(true);
     setCrawlResult(null);
+    setCrawlProgress('Fetching homepage and discovering pages...');
     try {
       const res = await fetch('/api/seo/crawl', {
         method: 'POST',
@@ -51,24 +61,17 @@ export default function SeoDashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setCrawlResult(data);
+        setCrawlProgress('');
         fetchData();
       } else {
         const err = await res.json().catch(() => ({}));
         setCrawlResult({ error: err.error || 'Crawl failed' });
+        setCrawlProgress('');
       }
     } catch (e) {
       setCrawlResult({ error: String(e) });
+      setCrawlProgress('');
     } finally { setCrawling(false); }
-  };
-
-  const handleAddPage = async () => {
-    if (!newPage.pageUrl.trim()) return;
-    await fetch(`/api/websites/${websiteId}/seo`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newPage),
-    });
-    setNewPage({ pageUrl: '', pageTitle: '', metaDescription: '', h1Tag: '', h1Count: 1, wordCount: 0, targetKeyword: '', imagesTotal: 0, imagesWithAlt: 0, internalLinks: 0, externalLinks: 0 });
-    setAddingPage(false); fetchData();
   };
 
   const handleUpdateField = async (seoPageId: string, field: string, value: string) => {
@@ -103,18 +106,6 @@ export default function SeoDashboardPage() {
     setAiLoading(null);
   };
 
-  const handleFullAudit = async () => {
-    setAuditLoading(true); setAuditResult(null);
-    try {
-      const res = await fetch('/api/seo/audit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteId }),
-      });
-      setAuditResult(await res.json());
-    } catch { setAuditResult({ error: 'Audit failed' }); }
-    setAuditLoading(false);
-  };
-
   const applyMeta = async (pageId: string, title: string, description: string) => {
     await fetch(`/api/websites/${websiteId}/seo`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -131,6 +122,7 @@ export default function SeoDashboardPage() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading...</div></div>;
 
   const avgScore = pages.length > 0 ? Math.round(pages.reduce((s, p) => s + (p.seoScore || 0), 0) / pages.length) : 0;
+  const hasPages = pages.length > 0;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -144,17 +136,23 @@ export default function SeoDashboardPage() {
         <div>
           <h1 className="text-2xl font-light tracking-wide text-white/90">SEO Dashboard</h1>
           <p className="text-sm text-white/40 mt-1">{website?.url} · {website?.client?.businessName}</p>
+          {lastCrawled && <p className="text-xs text-white/25 mt-0.5">Last crawled: {lastCrawled}</p>}
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setAddingPage(true)} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200">+ Add Page</button>
-          <button onClick={handleCrawl} disabled={crawling} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200 disabled:opacity-40">
-            {crawling ? 'Crawling...' : 'Crawl Site'}
+          <button
+            onClick={handleFullSiteAudit}
+            disabled={crawling}
+            className="px-5 py-2 rounded-xl bg-accent/30 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/40 transition-all duration-200 disabled:opacity-40 shadow-lg shadow-accent/10"
+          >
+            {crawling ? (
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                Crawling...
+              </span>
+            ) : hasPages ? 'Re-crawl Site' : 'Full Site Audit'}
           </button>
           <button onClick={() => setCompetitorModal(true)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200">
             Competitor Analysis
-          </button>
-          <button onClick={handleFullAudit} disabled={auditLoading || pages.length === 0} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200 disabled:opacity-30">
-            {auditLoading ? 'Auditing...' : 'Full Site Audit'}
           </button>
         </div>
       </div>
@@ -179,14 +177,14 @@ export default function SeoDashboardPage() {
         </div>
       </div>
 
-      {/* Crawl Status */}
+      {/* Crawl Progress */}
       {crawling && (
         <div className="glass p-6 mb-6 text-center">
           <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-3">
-            <div className="h-full bg-accent/40 rounded-full animate-pulse" style={{ width: '50%' }} />
+            <div className="h-full bg-accent/40 rounded-full animate-pulse" style={{ width: '60%' }} />
           </div>
-          <p className="text-sm text-white/60">Crawling site and extracting SEO data...</p>
-          <p className="text-xs text-white/30 mt-1">This may take 30-60 seconds</p>
+          <p className="text-sm text-white/60">{crawlProgress || 'Crawling site and extracting SEO data...'}</p>
+          <p className="text-xs text-white/30 mt-1">Fetching pages, parsing HTML, extracting SEO data</p>
         </div>
       )}
 
@@ -202,7 +200,7 @@ export default function SeoDashboardPage() {
         </div>
       )}
 
-      {/* Audit Result */}
+      {/* Audit Result (from AI audit) */}
       {auditResult && !auditResult.error && (
         <div className="glass p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -234,33 +232,6 @@ export default function SeoDashboardPage() {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Add Page Form */}
-      {addingPage && (
-        <div className="glass p-6 mb-6">
-          <h3 className="text-sm text-white/60 mb-4">Add Page</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className="text-xs text-white/40">Page URL *</label><input value={newPage.pageUrl} onChange={e => setNewPage(p => ({ ...p, pageUrl: e.target.value }))} placeholder="/about" className="mt-1 text-sm" /></div>
-            <div><label className="text-xs text-white/40">Target Keyword</label><input value={newPage.targetKeyword} onChange={e => setNewPage(p => ({ ...p, targetKeyword: e.target.value }))} className="mt-1 text-sm" /></div>
-            <div><label className="text-xs text-white/40">Page Title</label><input value={newPage.pageTitle} onChange={e => setNewPage(p => ({ ...p, pageTitle: e.target.value }))} className="mt-1 text-sm" /></div>
-            <div><label className="text-xs text-white/40">H1 Tag</label><input value={newPage.h1Tag} onChange={e => setNewPage(p => ({ ...p, h1Tag: e.target.value }))} className="mt-1 text-sm" /></div>
-            <div className="col-span-2"><label className="text-xs text-white/40">Meta Description</label><input value={newPage.metaDescription} onChange={e => setNewPage(p => ({ ...p, metaDescription: e.target.value }))} className="mt-1 text-sm" /></div>
-            <div><label className="text-xs text-white/40">Word Count</label><input type="number" value={newPage.wordCount} onChange={e => setNewPage(p => ({ ...p, wordCount: parseInt(e.target.value) || 0 }))} className="mt-1 text-sm" /></div>
-            <div><label className="text-xs text-white/40">Images (total / with alt)</label>
-              <div className="flex gap-2 mt-1">
-                <input type="number" value={newPage.imagesTotal} onChange={e => setNewPage(p => ({ ...p, imagesTotal: parseInt(e.target.value) || 0 }))} className="text-sm w-20" />
-                <input type="number" value={newPage.imagesWithAlt} onChange={e => setNewPage(p => ({ ...p, imagesWithAlt: parseInt(e.target.value) || 0 }))} className="text-sm w-20" />
-              </div>
-            </div>
-            <div><label className="text-xs text-white/40">Internal Links</label><input type="number" value={newPage.internalLinks} onChange={e => setNewPage(p => ({ ...p, internalLinks: parseInt(e.target.value) || 0 }))} className="mt-1 text-sm" /></div>
-            <div><label className="text-xs text-white/40">External Links</label><input type="number" value={newPage.externalLinks} onChange={e => setNewPage(p => ({ ...p, externalLinks: parseInt(e.target.value) || 0 }))} className="mt-1 text-sm" /></div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setAddingPage(false)} className="px-4 py-1.5 rounded-lg border border-white/15 text-white/40 text-xs">Cancel</button>
-            <button onClick={handleAddPage} className="px-4 py-1.5 rounded-lg bg-accent/20 text-accent text-xs">Add Page</button>
-          </div>
         </div>
       )}
 
@@ -301,13 +272,26 @@ export default function SeoDashboardPage() {
         </div>
       )}
 
-      {/* Pages Table */}
-      {pages.length === 0 ? (
-        <div className="glass p-12 text-center text-white/30 text-sm">No pages tracked yet. Add pages to start auditing SEO.</div>
+      {/* Pages List */}
+      {pages.length === 0 && !crawling ? (
+        <div className="glass p-12 text-center">
+          <div className="text-white/20 mb-4">
+            <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>
+          </div>
+          <p className="text-white/40 text-sm mb-2">No pages crawled yet</p>
+          <p className="text-white/25 text-xs mb-6">Click "Full Site Audit" to crawl {website?.url} and discover all pages</p>
+          <button
+            onClick={handleFullSiteAudit}
+            disabled={crawling}
+            className="px-6 py-2.5 rounded-xl bg-accent/30 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/40 transition-all duration-200 shadow-lg shadow-accent/10"
+          >
+            Full Site Audit
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
           {pages.map(page => (
-            <div key={page.id} className="glass p-5">
+            <div key={page.id} className="glass p-5 cursor-pointer hover:bg-white/[0.03] transition-colors" onClick={() => setExpandedPage(expandedPage === page.id ? null : page.id)}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <SEOScoreBadge score={page.seoScore || 0} />
@@ -316,7 +300,7 @@ export default function SeoDashboardPage() {
                     {page.targetKeyword && <p className="text-xs text-white/30">Keyword: {page.targetKeyword}</p>}
                   </div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                   <button onClick={() => setEditingPage(editingPage === page.id ? null : page.id)} className="px-2 py-1 rounded text-xs text-white/30 hover:text-white/60 hover:bg-white/5">Edit</button>
                   <button onClick={() => handleGenerateMeta(page)} disabled={aiLoading === page.id} className="px-2 py-1 rounded text-xs text-accent/60 hover:text-accent hover:bg-accent/5 disabled:opacity-30">
                     {aiLoading === page.id ? '...' : 'Gen Meta'}
@@ -325,23 +309,25 @@ export default function SeoDashboardPage() {
                 </div>
               </div>
 
-              {/* SEO Details */}
+              {/* SEO Summary Row */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 <div>
                   <p className="text-white/30">Title</p>
-                  <p className={`text-white/60 truncate ${!page.pageTitle ? 'text-red-400' : (page.titleLength || 0) < 50 || (page.titleLength || 0) > 60 ? 'text-amber-400' : ''}`}>
-                    {page.pageTitle || 'MISSING'} <span className="text-white/20">{page.titleLength ? `(${page.titleLength})` : ''}</span>
+                  <p className={`text-white/60 truncate ${!page.pageTitle ? 'text-red-400 font-medium' : (page.titleLength || 0) < 30 || (page.titleLength || 0) > 65 ? 'text-amber-400' : ''}`}>
+                    {page.pageTitle || 'Missing'} {page.titleLength ? <span className="text-white/20">({page.titleLength})</span> : null}
                   </p>
                 </div>
                 <div>
                   <p className="text-white/30">Meta Desc</p>
-                  <p className={`text-white/60 truncate ${!page.metaDescription ? 'text-red-400' : (page.metaDescLength || 0) < 150 || (page.metaDescLength || 0) > 160 ? 'text-amber-400' : ''}`}>
-                    {page.metaDescription ? `${page.metaDescription.substring(0, 50)}...` : 'MISSING'} <span className="text-white/20">{page.metaDescLength ? `(${page.metaDescLength})` : ''}</span>
+                  <p className={`text-white/60 truncate ${!page.metaDescription ? 'text-red-400 font-medium' : (page.metaDescLength || 0) < 120 || (page.metaDescLength || 0) > 160 ? 'text-amber-400' : ''}`}>
+                    {page.metaDescription ? `${page.metaDescription.substring(0, 50)}...` : 'Missing'} {page.metaDescLength ? <span className="text-white/20">({page.metaDescLength})</span> : null}
                   </p>
                 </div>
                 <div>
                   <p className="text-white/30">H1</p>
-                  <p className={`text-white/60 truncate ${!page.h1Tag ? 'text-red-400' : page.h1Count !== 1 ? 'text-amber-400' : ''}`}>{page.h1Tag || 'MISSING'} {page.h1Count != null && page.h1Count !== 1 ? `(${page.h1Count} found)` : ''}</p>
+                  <p className={`text-white/60 truncate ${!page.h1Tag ? 'text-red-400 font-medium' : page.h1Count !== 1 ? 'text-amber-400' : ''}`}>
+                    {page.h1Tag || 'Missing'} {page.h1Count != null && page.h1Count !== 1 ? `(${page.h1Count} found)` : ''}
+                  </p>
                 </div>
                 <div>
                   <p className="text-white/30">Content</p>
@@ -349,9 +335,41 @@ export default function SeoDashboardPage() {
                 </div>
               </div>
 
+              {/* Expanded Details */}
+              {expandedPage === page.id && (
+                <div className="mt-4 pt-4 border-t border-white/10 space-y-3" onClick={e => e.stopPropagation()}>
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <p className="text-white/30 mb-1">Full Title</p>
+                      <p className="text-white/60">{page.pageTitle || 'None'}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/30 mb-1">Full Meta Description</p>
+                      <p className="text-white/60">{page.metaDescription || 'None'}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/30 mb-1">H1 Tag</p>
+                      <p className="text-white/60">{page.h1Tag || 'None'}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/30 mb-1">Heading Structure</p>
+                      <p className="text-white/60">{page.headingStructure || 'None'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={() => handleGenerateMeta(page)} disabled={aiLoading === page.id} className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs hover:bg-accent/25 disabled:opacity-30">
+                      {aiLoading === page.id ? 'Generating...' : 'Generate Meta Tags'}
+                    </button>
+                    <button onClick={() => handleSuggestKeywords(page)} disabled={aiLoading === page.id} className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs hover:bg-accent/25 disabled:opacity-30">
+                      Suggest Keywords
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Inline Edit */}
               {editingPage === page.id && (
-                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-3">
+                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-3" onClick={e => e.stopPropagation()}>
                   <div><label className="text-xs text-white/30">Title</label><input defaultValue={page.pageTitle || ''} onBlur={e => handleUpdateField(page.id, 'pageTitle', e.target.value)} className="mt-1 text-sm" /></div>
                   <div><label className="text-xs text-white/30">Target Keyword</label><input defaultValue={page.targetKeyword || ''} onBlur={e => handleUpdateField(page.id, 'targetKeyword', e.target.value)} className="mt-1 text-sm" /></div>
                   <div className="col-span-2"><label className="text-xs text-white/30">Meta Description</label><input defaultValue={page.metaDescription || ''} onBlur={e => handleUpdateField(page.id, 'metaDescription', e.target.value)} className="mt-1 text-sm" /></div>
