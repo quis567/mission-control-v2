@@ -56,6 +56,7 @@ export default function ClientDetailPage() {
               <p className="text-lg font-light text-emerald-400">${client.monthlyRevenue.toLocaleString()}<span className="text-xs text-white/30">/mo</span></p>
             )}
             <button onClick={() => setShowTaskModal(true)} className="px-3 py-1.5 rounded-xl bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all duration-200">+ Task</button>
+            <a href={`/proposals?clientId=${clientId}`} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all duration-200">Proposal</a>
           </div>
         </div>
         <div className="flex gap-6 mt-4 pt-4 border-t border-white/10 text-xs text-white/40">
