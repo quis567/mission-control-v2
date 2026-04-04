@@ -21,6 +21,8 @@ interface WebsiteCardProps {
     gaConnected?: boolean;
     gscConnected?: boolean;
     maintenancePlan?: boolean;
+    netlifySiteId?: string | null;
+    githubRepoUrl?: string | null;
     client?: { businessName: string } | null;
   };
 }
@@ -54,6 +56,8 @@ export default function WebsiteCard({ website }: WebsiteCardProps) {
         </div>
 
         <div className="flex gap-3 mt-3 pt-3 border-t border-white/5 text-xs text-white/20">
+          {website.netlifySiteId && <span className="text-emerald-400/40">Netlify</span>}
+          {website.githubRepoUrl && <span className="text-white/30">GitHub</span>}
           <span>{website.gaConnected ? 'GA' : ''}{website.gscConnected ? ' · GSC' : ''}</span>
           {website.maintenancePlan && <span>Maintenance plan</span>}
         </div>
