@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 
+export const maxDuration = 300; // 5 minutes max for Vercel Functions
+
 function calculateLeadScore(lead: any): number {
   let score = 0;
   const wq = (lead.websiteQuality || '').toLowerCase();
@@ -136,7 +138,7 @@ Respond ONLY with a JSON array. No markdown, no code fences. Each object must ha
 businessName, tradeType, contactName, phone, website, googleRating, address, city, state, description, servicesOffered, yearsInBusiness, websiteQuality, onlinePresenceNotes`,
             }],
           }),
-        }, 60000); // 60s timeout for search
+        }, 120000); // 120s timeout for search
 
         if (!searchRes.ok) {
           send('error', { message: 'Search API failed. Click Retry to try again.' });
