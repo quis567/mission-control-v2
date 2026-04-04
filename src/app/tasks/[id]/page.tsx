@@ -119,12 +119,10 @@ export default function TaskDetailPage() {
       </div>
 
       {/* Deliverables */}
-      {task.deliverables && task.deliverables !== '[]' && (
-        <div className="glass p-6 mb-6">
-          <h2 className="text-sm uppercase tracking-wider text-white/40 mb-4">Deliverables</h2>
-          <DeliverableViewer content={task.deliverables} />
-        </div>
-      )}
+      <div className="glass p-6 mb-6">
+        <h2 className="text-sm uppercase tracking-wider text-white/40 mb-4">Deliverable</h2>
+        <DeliverableViewer content={task.deliverables} />
+      </div>
 
       {/* Activity Log */}
       <div className="glass p-6">
