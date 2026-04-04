@@ -12,6 +12,7 @@ interface PipelineClient {
   status: string;
   updatedAt: string;
   createdAt: string;
+  package?: { id: string; name: string; price: number } | null;
 }
 
 interface PipelineColumnProps {
@@ -82,6 +83,10 @@ export default function PipelineColumn({ status, label, color, clients, onDrop, 
                 <h3 className="text-sm font-medium text-white/90">{client.businessName}</h3>
                 {client.contactName && <p className="text-xs text-white/40 mt-0.5">{client.contactName}</p>}
                 {client.businessType && <p className="text-xs text-white/30 mt-0.5">{client.businessType}</p>}
+
+                {client.package && (
+                  <p className="text-xs text-accent/60 mt-1">{client.package.name}</p>
+                )}
 
                 <div className="flex items-center gap-2 mt-2">
                   {client.monthlyRevenue != null && client.monthlyRevenue > 0 && (

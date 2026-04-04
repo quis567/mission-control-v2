@@ -16,6 +16,7 @@ export async function GET(
         notes: { orderBy: { createdAt: 'desc' } },
         tasks: { orderBy: { createdAt: 'desc' }, take: 10 },
         _count: { select: { websites: true, services: true, tasks: true } },
+        package: { select: { id: true, name: true, price: true } },
       },
     });
 
@@ -38,7 +39,7 @@ export async function PATCH(
     const body = await request.json();
 
     const data: Record<string, unknown> = {};
-    const fields = ['businessName', 'contactName', 'email', 'phone', 'businessType', 'city', 'state', 'status', 'tags'];
+    const fields = ['businessName', 'contactName', 'email', 'phone', 'businessType', 'city', 'state', 'status', 'tags', 'packageId'];
     for (const f of fields) {
       if (f in body) data[f] = body[f];
     }

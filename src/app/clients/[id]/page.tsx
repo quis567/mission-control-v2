@@ -82,7 +82,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'Overview' && <OverviewTab client={client} />}
+      {activeTab === 'Overview' && <OverviewTab client={client} onRefresh={fetchClient} />}
       {activeTab === 'Websites' && <WebsitesTab clientId={clientId} websites={client.websites || []} onRefresh={fetchClient} />}
       {activeTab === 'Services' && <ServicesTab clientId={clientId} services={client.services || []} onRefresh={fetchClient} />}
       {activeTab === 'Notes' && <NotesTab clientId={clientId} notes={client.notes || []} onRefresh={fetchClient} />}
@@ -99,9 +99,58 @@ export default function ClientDetailPage() {
   );
 }
 
-function OverviewTab({ client }: { client: any }) {
+function OverviewTab({ client, onRefresh }: { client: any; onRefresh: () => void }) {
+  const [packages, setPackages] = useState<any[]>([]);
+  const [changingPackage, setChangingPackage] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/packages').then(r => r.json()).then(setPackages).catch(() => {});
+  }, []);
+
+  const handlePackageChange = async (packageId: string) => {
+    await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId: packageId || null }),
+    });
+    setChangingPackage(false);
+    onRefresh();
+  };
+
   return (
     <div className="grid grid-cols-3 gap-4">
+      {/* Package Section */}
+      <div className="col-span-3 glass p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wider">Package</p>
+            {client.package ? (
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-lg font-light text-accent">{client.package.name}</span>
+                <span className="text-sm text-white/30">${client.package.price.toLocaleString()}/mo</span>
+              </div>
+            ) : (
+              <p className="text-sm text-white/30 mt-2">No package assigned</p>
+            )}
+          </div>
+          <button onClick={() => setChangingPackage(!changingPackage)} className="text-xs text-accent hover:text-accent/80">
+            {changingPackage ? 'Cancel' : 'Change'}
+          </button>
+        </div>
+        {changingPackage && (
+          <div className="flex gap-2 mt-3 pt-3 border-t border-white/5">
+            <button onClick={() => handlePackageChange('')} className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${!client.packageId ? 'bg-accent/20 border-accent/30 text-accent' : 'border-white/10 text-white/40 hover:bg-white/5'}`}>
+              None
+            </button>
+            {packages.map(pkg => (
+              <button key={pkg.id} onClick={() => handlePackageChange(pkg.id)} className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${client.packageId === pkg.id ? 'bg-accent/20 border-accent/30 text-accent' : 'border-white/10 text-white/40 hover:bg-white/5'}`}>
+                {pkg.name} {!pkg.isCustom && `· $${pkg.price}`}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="glass p-5">
         <p className="text-xs text-white/40 uppercase tracking-wider">Websites</p>
         <p className="text-2xl font-light mt-2 text-accent">{client._count?.websites || 0}</p>

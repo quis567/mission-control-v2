@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       orderBy: { [sortBy]: sortDir },
       include: {
         _count: { select: { websites: true, services: true, tasks: true } },
+        package: { select: { id: true, name: true, price: true } },
       },
     });
 

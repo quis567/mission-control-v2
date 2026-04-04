@@ -22,6 +22,7 @@ interface ClientCardProps {
     status: string;
     monthlyRevenue?: number | null;
     tags?: string | null;
+    package?: { id: string; name: string; price: number } | null;
     _count?: { websites: number; services: number; tasks: number };
   };
   showCounts?: boolean;
@@ -48,6 +49,7 @@ export default function ClientCard({ client, showCounts = true }: ClientCardProp
           {(client.city || client.state) && (
             <p>{[client.city, client.state].filter(Boolean).join(', ')}</p>
           )}
+          {client.package && <p className="text-accent/60">{client.package.name}</p>}
           {client.monthlyRevenue != null && (
             <p className="text-emerald-400/70">${client.monthlyRevenue.toLocaleString()}/mo</p>
           )}

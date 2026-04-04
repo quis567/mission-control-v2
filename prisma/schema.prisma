@@ -97,6 +97,20 @@ model Session {
 // CRM & Client Management Models
 // ==========================================
 
+model Package {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  services    String   // JSON array of service types included
+  isCustom    Boolean  @default(false) @map("is_custom")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  clients Client[]
+
+  @@map("packages")
+}
+
 model Client {
   id             String    @id @default(uuid())
   businessName   String    @map("business_name")
@@ -110,9 +124,11 @@ model Client {
   monthlyRevenue Float?    @map("monthly_revenue")
   dateAcquired   DateTime? @map("date_acquired")
   tags           String?   // JSON array
+  packageId      String?   @map("package_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  package  Package?     @relation(fields: [packageId], references: [id])
   notes    ClientNote[]
   websites Website[]
   services Service[]
