@@ -72,10 +72,10 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 
 export const AGENT_ICON_COLORS: Record<string, string> = {
-  'ops-manager': '#38bdf8',
+  'ops-manager': '#06b6d4',
   'builder': '#4ade80',
   'marketing-architect': '#fbbf24',
-  'quality-reviewer': '#a78bfa',
+  'quality-reviewer': '#3b82f6',
   'sop-engineer': '#f87171',
   'systems-architect': '#06b6d4',
   'onboarding-specialist': '#fb923c',

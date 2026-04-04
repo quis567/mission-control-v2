@@ -11,7 +11,7 @@ interface TaskCardProps {
 
 export default function TaskCard({ task, onExecute }: TaskCardProps) {
   const statusColor = STATUS_COLORS[task.status] || 'text-white/50';
-  const agentColor = task.assigned_agent_id ? AGENT_ICON_COLORS[task.assigned_agent_id] || '#38bdf8' : undefined;
+  const agentColor = task.assigned_agent_id ? AGENT_ICON_COLORS[task.assigned_agent_id] || '#06b6d4' : undefined;
 
   const borderColor = {
     inbox: 'border-t-white/20',

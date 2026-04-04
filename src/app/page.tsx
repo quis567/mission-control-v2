@@ -78,8 +78,8 @@ export default function Dashboard() {
                           <div
                             className={`w-2.5 h-2.5 rounded-full ${task.status === 'in_progress' ? 'pulse-working' : ''}`}
                             style={{
-                              backgroundColor: AGENT_ICON_COLORS[task.assigned_agent_id] || '#38bdf8',
-                              color: AGENT_ICON_COLORS[task.assigned_agent_id] || '#38bdf8',
+                              backgroundColor: AGENT_ICON_COLORS[task.assigned_agent_id] || '#06b6d4',
+                              color: AGENT_ICON_COLORS[task.assigned_agent_id] || '#06b6d4',
                             }}
                           />
                         )}
@@ -106,7 +106,7 @@ export default function Dashboard() {
           <h2 className="text-sm uppercase tracking-wider text-white/40 mb-4">Agents</h2>
           <div className="space-y-2">
             {agents.map(agent => {
-              const color = AGENT_ICON_COLORS[agent.id] || '#38bdf8';
+              const color = AGENT_ICON_COLORS[agent.id] || '#06b6d4';
               const isWorking = agent.status === 'working';
               return (
                 <Link key={agent.id} href="/agents">

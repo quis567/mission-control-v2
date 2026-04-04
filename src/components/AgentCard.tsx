@@ -8,7 +8,7 @@ interface AgentCardProps {
 }
 
 export default function AgentCard({ agent }: AgentCardProps) {
-  const color = AGENT_ICON_COLORS[agent.id] || '#38bdf8';
+  const color = AGENT_ICON_COLORS[agent.id] || '#06b6d4';
   const isWorking = agent.status === 'working';
 
   return (

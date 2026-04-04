@@ -51,7 +51,7 @@ export default function TaskDetailPage() {
     );
   }
 
-  const agentColor = task.assigned_agent_id ? AGENT_ICON_COLORS[task.assigned_agent_id] || '#38bdf8' : '#38bdf8';
+  const agentColor = task.assigned_agent_id ? AGENT_ICON_COLORS[task.assigned_agent_id] || '#06b6d4' : '#06b6d4';
   const statusColor = STATUS_COLORS[task.status] || 'text-white/50';
   const canExecute = (task.status === 'assigned' || task.status === 'inbox') && task.assigned_agent_id;
 
