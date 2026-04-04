@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Task {
+  id                 String    @id @default(uuid())
+  title              String
+  description        String?
+  status             String    @default("inbox")
+  priority           String    @default("normal")
+  assignedAgentId    String?   @map("assigned_agent_id")
+  workflowTemplateId String?   @map("workflow_template_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  dueDate            DateTime? @map("due_date")
+  workspaceId        String?   @map("workspace_id")
+  deliverables       String    @default("[]")
+  sessionKey         String?   @map("session_key")
+  parentTaskId       String?   @map("parent_task_id")
+
+  activities Activity[]
+
+  @@map("tasks")
+}
+
+model Agent {
+  id          String   @id
+  name        String
+  role        String
+  description String?
+  soulMd      String?  @map("soul_md")
+  model       String?
+  status      String   @default("standby")
+  workspaceId String?  @map("workspace_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  activities Activity[]
+
+  @@map("agents")
+}
+
+model WorkflowTemplate {
+  id          String  @id
+  name        String
+  description String?
+  stages      String
+  workspaceId String? @map("workspace_id")
+
+  @@map("workflow_templates")
+}
+
+model Activity {
+  id           String   @id @default(uuid())
+  taskId       String?  @map("task_id")
+  agentId      String?  @map("agent_id")
+  activityType String   @map("activity_type")
+  content      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  task  Task?  @relation(fields: [taskId], references: [id])
+  agent Agent? @relation(fields: [agentId], references: [id])
+
+  @@map("activities")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      String   @default("user")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}

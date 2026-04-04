@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-start: #0f0c29;
+  --bg-mid: #302b63;
+  --bg-end: #24243e;
+}
+
+body {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--bg-start), var(--bg-mid), var(--bg-end));
+  min-height: 100vh;
+  font-family: var(--font-geist-sans), 'Inter', system-ui, sans-serif;
+}
+
+/* Glass utility classes */
+@layer components {
+  .glass {
+    @apply bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl shadow-lg;
+  }
+
+  .glass-elevated {
+    @apply bg-white/15 backdrop-blur-[40px] border border-white/20 rounded-2xl shadow-2xl;
+  }
+
+  .glass-subtle {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl;
+  }
+
+  .glass-active {
+    @apply bg-white/20 backdrop-blur-xl border border-white/30 ring-1 ring-white/10;
+  }
+}
+
+/* Glow effects */
+@layer utilities {
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.15);
+  }
+
+  .glow-warning {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+  }
+
+  .glow-error {
+    box-shadow: 0 0 20px rgba(248, 113, 113, 0.15);
+  }
+}
+
+/* Agent status pulse */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px currentColor; }
+  50% { opacity: 0.5; box-shadow: 0 0 12px currentColor; }
+}
+
+.pulse-working {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Smooth transitions */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Input styles */
+input, textarea, select {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  outline: none;
+  padding: 0.5rem 0;
+  width: 100%;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-bottom-color: #38bdf8;
+}
+
+input::placeholder, textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+select option {
+  background: #1a1a3e;
+  color: white;
+}
