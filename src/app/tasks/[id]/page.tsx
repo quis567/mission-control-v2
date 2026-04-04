@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { Task, Activity } from '@/lib/agents';
 import { STATUS_LABELS, STATUS_COLORS, PRIORITY_LABELS, AGENT_ICON_COLORS } from '@/lib/agents';
+import DeliverableViewer from '@/components/DeliverableViewer';
 
 export default function TaskDetailPage() {
   const params = useParams();
@@ -121,11 +122,7 @@ export default function TaskDetailPage() {
       {task.deliverables && task.deliverables !== '[]' && (
         <div className="glass p-6 mb-6">
           <h2 className="text-sm uppercase tracking-wider text-white/40 mb-4">Deliverables</h2>
-          <div className="glass-subtle p-4 font-mono text-xs text-white/70 whitespace-pre-wrap max-h-64 overflow-y-auto">
-            {JSON.parse(task.deliverables).map((d: string, i: number) => (
-              <div key={i} className="mb-2">{d}</div>
-            ))}
-          </div>
+          <DeliverableViewer content={task.deliverables} />
         </div>
       )}
 

@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-
-const SCORE_COLOR = (s: number) => s >= 80 ? 'text-emerald-400' : s >= 50 ? 'text-amber-400' : 'text-red-400';
-const SCORE_BG = (s: number) => s >= 80 ? 'bg-emerald-400/10 border-emerald-400/20' : s >= 50 ? 'bg-amber-400/10 border-amber-400/20' : 'bg-red-400/10 border-red-400/20';
+import SEOScoreBadge, { SCORE_COLOR } from '@/components/SEOScoreBadge';
 
 export default function SeoDashboardPage() {
   const params = useParams();
@@ -254,9 +252,7 @@ export default function SeoDashboardPage() {
             <div key={page.id} className="glass p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${SCORE_BG(page.seoScore || 0)}`}>
-                    <span className={`text-sm font-medium ${SCORE_COLOR(page.seoScore || 0)}`}>{page.seoScore || 0}</span>
-                  </div>
+                  <SEOScoreBadge score={page.seoScore || 0} />
                   <div>
                     <p className="text-sm text-white/80">{page.pageUrl}</p>
                     {page.targetKeyword && <p className="text-xs text-white/30">Keyword: {page.targetKeyword}</p>}

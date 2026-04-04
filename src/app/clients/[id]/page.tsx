@@ -4,14 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import CreateTaskModal from '@/components/CreateTaskModal';
-
-const STATUS_COLORS: Record<string, string> = {
-  lead: 'text-sky-400 bg-sky-400/10',
-  prospect: 'text-amber-400 bg-amber-400/10',
-  active: 'text-emerald-400 bg-emerald-400/10',
-  paused: 'text-orange-400 bg-orange-400/10',
-  churned: 'text-red-400 bg-red-400/10',
-};
+import { STATUS_COLORS } from '@/components/ClientCard';
+import ServiceCard from '@/components/ServiceCard';
+import LinkCard from '@/components/LinkCard';
+import NoteTimeline from '@/components/NoteTimeline';
 
 const TABS = ['Overview', 'Websites', 'Services', 'Notes', 'Links'];
 
@@ -210,11 +206,6 @@ function ServicesTab({ clientId, services, onRefresh }: { clientId: string; serv
     setForm({ serviceType: '', billingType: 'monthly', price: '', status: 'active' }); setAdding(false); onRefresh();
   };
 
-  const SERVICE_STATUS: Record<string, string> = {
-    active: 'text-emerald-400 bg-emerald-400/10', paused: 'text-amber-400 bg-amber-400/10',
-    cancelled: 'text-red-400 bg-red-400/10', completed: 'text-white/40 bg-white/5',
-  };
-
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -247,16 +238,7 @@ function ServicesTab({ clientId, services, onRefresh }: { clientId: string; serv
       ) : (
         <div className="space-y-3">
           {services.map((s: any) => (
-            <div key={s.id} className="glass p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/80">{s.serviceType}</p>
-                <div className="flex gap-3 mt-1 text-xs text-white/30">
-                  <span>{s.billingType}</span>
-                  {s.price != null && <span className="text-emerald-400/60">${s.price.toLocaleString()}</span>}
-                </div>
-              </div>
-              <span className={`text-xs px-2 py-0.5 rounded-lg ${SERVICE_STATUS[s.status] || ''}`}>{s.status}</span>
-            </div>
+            <ServiceCard key={s.id} service={s} />
           ))}
         </div>
       )}
@@ -285,18 +267,7 @@ function NotesTab({ clientId, notes, onRefresh }: { clientId: string; notes: any
           <button onClick={handleAdd} disabled={!content.trim()} className="px-4 py-1.5 rounded-lg bg-accent/20 text-accent text-xs disabled:opacity-40">Add Note</button>
         </div>
       </div>
-      {notes.length === 0 ? (
-        <div className="glass p-8 text-center text-white/30 text-sm">No notes yet</div>
-      ) : (
-        <div className="space-y-3">
-          {notes.map((n: any) => (
-            <div key={n.id} className="glass-subtle p-4">
-              <p className="text-sm text-white/70 whitespace-pre-wrap">{n.content}</p>
-              <p className="text-xs text-white/20 mt-2">{new Date(n.createdAt).toLocaleString()}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <NoteTimeline notes={notes} />
     </div>
   );
 }
@@ -304,8 +275,6 @@ function NotesTab({ clientId, notes, onRefresh }: { clientId: string; notes: any
 function LinksTab({ clientId, links, onRefresh }: { clientId: string; links: any[]; onRefresh: () => void }) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ label: '', url: '', category: '', username: '', password: '' });
-  const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set());
-
   const handleAdd = async () => {
     if (!form.label.trim()) return;
     await fetch(`/api/clients/${clientId}/links`, {
@@ -314,14 +283,6 @@ function LinksTab({ clientId, links, onRefresh }: { clientId: string; links: any
       body: JSON.stringify(form),
     });
     setForm({ label: '', url: '', category: '', username: '', password: '' }); setAdding(false); onRefresh();
-  };
-
-  const toggleReveal = (id: string) => {
-    setRevealedPasswords(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
   };
 
   return (
@@ -357,27 +318,7 @@ function LinksTab({ clientId, links, onRefresh }: { clientId: string; links: any
       ) : (
         <div className="space-y-3">
           {links.map((l: any) => (
-            <div key={l.id} className="glass p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-white/80">{l.label}</span>
-                  {l.category && <span className="text-xs text-white/25 bg-white/5 px-1.5 py-0.5 rounded">{l.category}</span>}
-                </div>
-                {l.url && (
-                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent/80">Open</a>
-                )}
-              </div>
-              {(l.username || l.password) && (
-                <div className="flex gap-4 text-xs text-white/40 mt-2 pt-2 border-t border-white/5">
-                  {l.username && <span>User: {l.username}</span>}
-                  {l.password && (
-                    <span className="cursor-pointer" onClick={() => toggleReveal(l.id)}>
-                      Pass: {revealedPasswords.has(l.id) ? l.password : '••••••'}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+            <LinkCard key={l.id} link={l} />
           ))}
         </div>
       )}
