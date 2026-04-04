@@ -128,12 +128,14 @@ model Client {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  package  Package?     @relation(fields: [packageId], references: [id])
-  notes    ClientNote[]
-  websites Website[]
-  services Service[]
-  links    ClientLink[]
-  tasks    Task[]
+  package   Package?     @relation(fields: [packageId], references: [id])
+  notes     ClientNote[]
+  websites  Website[]
+  services  Service[]
+  links     ClientLink[]
+  tasks     Task[]
+  proposals Proposal[]
+  reports   Report[]
 
   @@map("clients")
 }
@@ -170,8 +172,12 @@ model Website {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  seoPages SeoPage[]
+  netlifySiteId  String?  @map("netlify_site_id")
+  githubRepoUrl  String?  @map("github_repo_url")
+
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  seoPages     SeoPage[]
+  crawlHistory CrawlHistory[]
 
   @@map("websites")
 }
@@ -251,4 +257,65 @@ model ClientLink {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_links")
+}
+
+// ==========================================
+// Revenue Features Models
+// ==========================================
+
+model ProspectorSearch {
+  id            String   @id @default(uuid())
+  area          String
+  businessTypes String   @map("business_types") // JSON array
+  count         Int
+  resultsCount  Int      @map("results_count")
+  leadsAdded    Int      @default(0) @map("leads_added")
+  results       String   // JSON — full results data
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("prospector_searches")
+}
+
+model Proposal {
+  id          String    @id @default(uuid())
+  clientId    String    @map("client_id")
+  packageId   String?   @map("package_id")
+  content     String    // JSON — all generated sections
+  pdfUrl      String?   @map("pdf_url")
+  customPrice Float?    @map("custom_price")
+  status      String    @default("draft") // draft, sent, accepted, declined
+  sentAt      DateTime? @map("sent_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("proposals")
+}
+
+model Report {
+  id        String    @id @default(uuid())
+  clientId  String    @map("client_id")
+  month     Int
+  year      Int
+  content   String    // JSON — all generated sections
+  pdfUrl    String?   @map("pdf_url")
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model CrawlHistory {
+  id          String   @id @default(uuid())
+  websiteId   String   @map("website_id")
+  pagesFound  Int      @map("pages_found")
+  issuesFound Int      @default(0) @map("issues_found")
+  crawledAt   DateTime @default(now()) @map("crawled_at")
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@map("crawl_history")
 }
