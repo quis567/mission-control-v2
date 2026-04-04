@@ -23,11 +23,13 @@ export default function PipelinePage() {
   const fetchClients = useCallback(async () => {
     try {
       const res = await fetch('/api/clients');
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data)) setClients(data);
-    } catch { /* */ }
-    setLoading(false);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setClients(data);
+      }
+    } catch { /* */ } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchClients(); }, [fetchClients]);

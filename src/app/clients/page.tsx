@@ -32,11 +32,13 @@ export default function ClientsPage() {
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
       const res = await fetch(`/api/clients?${params}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data)) setClients(data);
-    } catch { /* */ }
-    setLoading(false);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setClients(data);
+      }
+    } catch { /* */ } finally {
+      setLoading(false);
+    }
   }, [search, statusFilter]);
 
   useEffect(() => {
