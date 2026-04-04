@@ -18,6 +18,10 @@ export default function SeoDashboardPage() {
   const [auditResult, setAuditResult] = useState<any>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [editingPage, setEditingPage] = useState<string | null>(null);
+  const [competitorModal, setCompetitorModal] = useState(false);
+  const [competitorUrl, setCompetitorUrl] = useState('');
+  const [competitorLoading, setCompetitorLoading] = useState(false);
+  const [competitorResult, setCompetitorResult] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     const [wRes, sRes] = await Promise.all([
@@ -118,6 +122,9 @@ export default function SeoDashboardPage() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setAddingPage(true)} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200">+ Add Page</button>
+          <button onClick={() => setCompetitorModal(true)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200">
+            Competitor Analysis
+          </button>
           <button onClick={handleFullAudit} disabled={auditLoading || pages.length === 0} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200 disabled:opacity-30">
             {auditLoading ? 'Auditing...' : 'Full Site Audit'}
           </button>
@@ -303,6 +310,118 @@ export default function SeoDashboardPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Competitor Analysis Modal */}
+      {competitorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setCompetitorModal(false); setCompetitorResult(null); }} />
+          <div className="glass-elevated p-8 w-full max-w-2xl relative z-10 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-light tracking-wide text-white mb-4">Competitor Analysis</h2>
+            <p className="text-xs text-white/40 mb-4">Comparing against: {website?.url}</p>
+
+            {!competitorResult && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-white/50 uppercase tracking-wider">Competitor URL</label>
+                  <input
+                    value={competitorUrl}
+                    onChange={e => setCompetitorUrl(e.target.value)}
+                    placeholder="https://competitor.com"
+                    className="mt-1 text-sm"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setCompetitorModal(false)} className="px-4 py-2 rounded-xl border border-white/15 text-white/40 text-sm">Cancel</button>
+                  <button
+                    onClick={async () => {
+                      if (!competitorUrl.trim()) return;
+                      setCompetitorLoading(true);
+                      try {
+                        const res = await fetch('/api/seo/competitor-analysis', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ clientWebsiteId: websiteId, competitorUrl: competitorUrl.trim() }),
+                        });
+                        setCompetitorResult(await res.json());
+                      } catch { setCompetitorResult({ summary: 'Analysis failed' }); }
+                      setCompetitorLoading(false);
+                    }}
+                    disabled={competitorLoading || !competitorUrl.trim()}
+                    className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200 disabled:opacity-40"
+                  >
+                    {competitorLoading ? 'Analyzing...' : 'Analyze'}
+                  </button>
+                </div>
+                {competitorLoading && (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 rounded-full border-2 border-accent/30 border-t-accent animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-white/40">AI is analyzing the competitor...</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {competitorResult && (
+              <div className="space-y-4">
+                {competitorResult.summary && (
+                  <div className="glass-subtle p-4">
+                    <p className="text-xs text-white/40 mb-1">Summary</p>
+                    <p className="text-sm text-white/70">{competitorResult.summary}</p>
+                  </div>
+                )}
+
+                {competitorResult.competitorStrengths?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Competitor Strengths</p>
+                    <div className="space-y-1">{competitorResult.competitorStrengths.map((s: string, i: number) => <p key={i} className="text-xs text-red-400/80">- {s}</p>)}</div>
+                  </div>
+                )}
+
+                {competitorResult.clientStrengths?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Your Strengths</p>
+                    <div className="space-y-1">{competitorResult.clientStrengths.map((s: string, i: number) => <p key={i} className="text-xs text-emerald-400/80">- {s}</p>)}</div>
+                  </div>
+                )}
+
+                {competitorResult.gaps?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Gaps to Address</p>
+                    <div className="space-y-1">{competitorResult.gaps.map((s: string, i: number) => <p key={i} className="text-xs text-amber-400/80">- {s}</p>)}</div>
+                  </div>
+                )}
+
+                {competitorResult.opportunities?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Opportunities</p>
+                    <div className="space-y-1">{competitorResult.opportunities.map((s: string, i: number) => <p key={i} className="text-xs text-accent/80">- {s}</p>)}</div>
+                  </div>
+                )}
+
+                {competitorResult.keywordSuggestions?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Keyword Suggestions</p>
+                    <div className="flex flex-wrap gap-1.5">{competitorResult.keywordSuggestions.map((kw: string, i: number) => <span key={i} className="text-xs bg-accent/10 text-accent/70 px-2 py-0.5 rounded">{kw}</span>)}</div>
+                  </div>
+                )}
+
+                {competitorResult.contentIdeas?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Content Ideas</p>
+                    <div className="space-y-1">{competitorResult.contentIdeas.map((s: string, i: number) => <p key={i} className="text-xs text-white/50">- {s}</p>)}</div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end pt-2">
+                  <button onClick={() => { setCompetitorResult(null); setCompetitorUrl(''); }} className="px-3 py-1.5 rounded-lg border border-white/15 text-white/40 text-xs">New Analysis</button>
+                  <button onClick={() => { setCompetitorModal(false); setCompetitorResult(null); setCompetitorUrl(''); }} className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-xs">Close</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
