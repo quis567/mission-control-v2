@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const BUSINESS_TYPES = [
   'Roofer', 'Plumber', 'Electrician', 'General Contractor', 'HVAC',
@@ -59,6 +59,37 @@ export default function ProspectorPage() {
   const [addResult, setAddResult] = useState<any>(null);
   const [error, setError] = useState('');
   const [expandedLead, setExpandedLead] = useState<number | null>(null);
+
+  // Load persisted leads on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('prospector_leads');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setLeads(parsed);
+      }
+      const savedArea = localStorage.getItem('prospector_area');
+      if (savedArea) setArea(savedArea);
+    } catch { /* */ }
+  }, []);
+
+  // Persist leads whenever they change
+  useEffect(() => {
+    if (leads.length > 0) {
+      localStorage.setItem('prospector_leads', JSON.stringify(leads));
+      localStorage.setItem('prospector_area', area);
+    }
+  }, [leads, area]);
+
+  const clearResults = () => {
+    setLeads([]);
+    setSelectedLeads(new Set());
+    setAddResult(null);
+    setSearchStatus('');
+    setError('');
+    localStorage.removeItem('prospector_leads');
+    localStorage.removeItem('prospector_area');
+  };
 
   const toggleType = (t: string) => setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
@@ -290,6 +321,9 @@ export default function ProspectorPage() {
             <div className="flex gap-2">
               <button onClick={handleDownloadXlsx} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
                 Download Spreadsheet
+              </button>
+              <button onClick={clearResults} className="px-3 py-1.5 rounded-lg bg-red-400/10 border border-red-400/20 text-red-400/70 text-xs hover:bg-red-400/20 transition-all">
+                Clear Results
               </button>
               <button onClick={selectAll} className="text-xs text-white/40 hover:text-white/60 px-3 py-1.5">
                 {selectedLeads.size === leads.length ? 'Deselect All' : 'Select All'}

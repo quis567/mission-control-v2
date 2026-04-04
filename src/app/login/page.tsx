@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,13 +39,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center" style={{ marginLeft: '-5rem' }}>
       <div className="glass-elevated p-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src="/images/Logo.png"
             alt="TruePath Studios"
-            width={240}
-            height={70}
             className="mx-auto mb-4 brightness-0 invert"
-            priority
+            style={{ height: '70px', width: 'auto' }}
           />
           <h1 className="text-2xl font-light tracking-wide text-white/90">Mission Control</h1>
           <p className="text-sm text-white/40 mt-1">TruePath Studios</p>
