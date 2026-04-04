@@ -10,6 +10,8 @@ export default function WebsitesPage() {
   const [syncing, setSyncing] = useState(false);
   const [netlifySites, setNetlifySites] = useState<any[] | null>(null);
   const [linkingWebsiteId, setLinkingWebsiteId] = useState<string | null>(null);
+  const [githubRepos, setGithubRepos] = useState<any[] | null>(null);
+  const [linkingGithubId, setLinkingGithubId] = useState<string | null>(null);
 
   const fetchWebsites = () => {
     const params = new URLSearchParams();
@@ -45,6 +47,27 @@ export default function WebsitesPage() {
       body: JSON.stringify({ websiteId, netlifySiteId }),
     });
     setLinkingWebsiteId(null);
+    fetchWebsites();
+  };
+
+  const handleGithubLinkStart = async (websiteId: string) => {
+    setLinkingGithubId(websiteId);
+    if (!githubRepos) {
+      try {
+        const res = await fetch('/api/integrations/github/repos');
+        if (res.ok) setGithubRepos(await res.json());
+        else setGithubRepos([]);
+      } catch { setGithubRepos([]); }
+    }
+  };
+
+  const handleGithubLink = async (websiteId: string, repoUrl: string) => {
+    await fetch('/api/integrations/github/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ websiteId, githubRepoUrl: repoUrl }),
+    });
+    setLinkingGithubId(null);
     fetchWebsites();
   };
 
@@ -96,11 +119,18 @@ export default function WebsitesPage() {
             <div key={w.id}>
               <WebsiteCard website={w} />
               <div className="flex items-center justify-between px-2 mt-1">
-                {w.netlifySiteId ? (
-                  <span className="text-xs text-emerald-400/50">Netlify linked</span>
-                ) : (
-                  <button onClick={() => handleLinkStart(w.id)} className="text-xs text-white/25 hover:text-accent/60">Link Netlify</button>
-                )}
+                <div className="flex gap-3">
+                  {w.netlifySiteId ? (
+                    <span className="text-xs text-emerald-400/50">Netlify linked</span>
+                  ) : (
+                    <button onClick={() => handleLinkStart(w.id)} className="text-xs text-white/25 hover:text-accent/60">Link Netlify</button>
+                  )}
+                  {w.githubRepoUrl ? (
+                    <a href={w.githubRepoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-white/30 hover:text-white/50">GitHub</a>
+                  ) : (
+                    <button onClick={() => handleGithubLinkStart(w.id)} className="text-xs text-white/25 hover:text-accent/60">Link GitHub</button>
+                  )}
+                </div>
                 {w.lastUpdated && (
                   <span className="text-xs text-white/20">Last deploy: {new Date(w.lastUpdated).toLocaleDateString()}</span>
                 )}
@@ -123,6 +153,26 @@ export default function WebsitesPage() {
                     ))
                   )}
                   <button onClick={() => setLinkingWebsiteId(null)} className="text-xs text-white/25 mt-1">Cancel</button>
+                </div>
+              )}
+
+              {linkingGithubId === w.id && githubRepos && (
+                <div className="glass-subtle p-3 mt-2 space-y-1">
+                  <p className="text-xs text-white/40 mb-2">Select GitHub repo:</p>
+                  {githubRepos.length === 0 ? (
+                    <p className="text-xs text-white/30">No repos found. Check your GITHUB_ACCESS_TOKEN.</p>
+                  ) : (
+                    githubRepos.map(repo => (
+                      <button
+                        key={repo.id}
+                        onClick={() => handleGithubLink(w.id, repo.url)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs text-white/60 hover:bg-white/5 transition-all"
+                      >
+                        {repo.name} {repo.language ? `· ${repo.language}` : ''} {repo.isPrivate ? '(private)' : ''}
+                      </button>
+                    ))
+                  )}
+                  <button onClick={() => setLinkingGithubId(null)} className="text-xs text-white/25 mt-1">Cancel</button>
                 </div>
               )}
             </div>
