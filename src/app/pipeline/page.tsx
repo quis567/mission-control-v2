@@ -21,8 +21,12 @@ export default function PipelinePage() {
   const [taskModal, setTaskModal] = useState<{ clientId: string; businessName: string } | null>(null);
 
   const fetchClients = useCallback(async () => {
-    const res = await fetch('/api/clients');
-    setClients(await res.json());
+    try {
+      const res = await fetch('/api/clients');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setClients(data);
+    } catch { /* */ }
     setLoading(false);
   }, []);
 

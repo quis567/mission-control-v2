@@ -24,6 +24,8 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated, defaultCli
   const [clients, setClients] = useState<{ id: string; businessName: string }[]>([]);
   const [openclawAvailable, setOpenclawAvailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [execResult, setExecResult] = useState<{ success: boolean; message: string; taskId?: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -37,9 +39,6 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated, defaultCli
   }, [isOpen, defaultTitle, defaultClientId]);
 
   if (!isOpen) return null;
-
-  const [executing, setExecuting] = useState(false);
-  const [execResult, setExecResult] = useState<{ success: boolean; message: string; taskId?: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

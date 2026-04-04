@@ -27,11 +27,15 @@ export default function ClientsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchClients = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (statusFilter) params.set('status', statusFilter);
-    const res = await fetch(`/api/clients?${params}`);
-    setClients(await res.json());
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('status', statusFilter);
+      const res = await fetch(`/api/clients?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setClients(data);
+    } catch { /* */ }
     setLoading(false);
   }, [search, statusFilter]);
 
