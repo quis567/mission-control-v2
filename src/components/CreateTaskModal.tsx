@@ -38,47 +38,114 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated, defaultCli
 
   if (!isOpen) return null;
 
+  const [executing, setExecuting] = useState(false);
+  const [execResult, setExecResult] = useState<{ success: boolean; message: string; taskId?: string } | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     setSubmitting(true);
+    setExecResult(null);
     try {
-      await fetch('/api/tasks', {
+      // 1. Create the task
+      const effectiveAgentId = agentId || 'ops-manager';
+      const createRes = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || undefined,
           priority,
-          assigned_agent_id: agentId || undefined,
+          assigned_agent_id: effectiveAgentId,
           workflow_template_id: workflowId || undefined,
           client_id: clientId || undefined,
-          execution_mode: executionMode,
         }),
       });
+      const created = await createRes.json();
 
-      setTitle('');
-      setDescription('');
-      setPriority('normal');
-      setAgentId('');
-      setWorkflowId('');
-      setClientId('');
-      setExecutionMode('auto');
+      if (!created.id) {
+        setExecResult({ success: false, message: 'Failed to create task' });
+        return;
+      }
+
+      // 2. Auto-execute if an agent is assigned
+      setExecuting(true);
+      const mode = executionMode === 'auto' ? 'api' : executionMode;
+      const execRes = await fetch(`/api/tasks/${created.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const execData = await execRes.json();
+
+      if (execRes.ok) {
+        setExecResult({
+          success: true,
+          message: execData.message || 'Task completed',
+          taskId: created.id,
+        });
+      } else {
+        setExecResult({
+          success: false,
+          message: execData.error || 'Execution failed',
+          taskId: created.id,
+        });
+      }
+
       onCreated();
-      onClose();
+    } catch (err) {
+      setExecResult({ success: false, message: String(err) });
     } finally {
       setSubmitting(false);
+      setExecuting(false);
     }
+  };
+
+  const handleClose = () => {
+    setTitle('');
+    setDescription('');
+    setPriority('normal');
+    setAgentId('');
+    setWorkflowId('');
+    setClientId('');
+    setExecutionMode('auto');
+    setExecResult(null);
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="glass-elevated p-8 w-full max-w-lg relative z-10">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+      <div className="glass-elevated p-8 w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-light tracking-wide text-white mb-6">Create Task</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Execution result */}
+        {execResult && (
+          <div className={`mb-6 p-4 rounded-xl border ${execResult.success ? 'bg-emerald-400/10 border-emerald-400/20' : 'bg-red-400/10 border-red-400/20'}`}>
+            <p className={`text-sm ${execResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+              {execResult.success ? 'Task executed successfully' : 'Execution failed'}
+            </p>
+            <p className="text-xs text-white/40 mt-1">{execResult.message}</p>
+            <div className="flex gap-2 mt-3">
+              {execResult.taskId && (
+                <a href={`/tasks/${execResult.taskId}`} className="text-xs text-accent hover:text-accent/80">View Task</a>
+              )}
+              <button onClick={handleClose} className="text-xs text-white/40 hover:text-white/60">Close</button>
+            </div>
+          </div>
+        )}
+
+        {/* Executing spinner */}
+        {executing && (
+          <div className="mb-6 p-6 glass-subtle text-center">
+            <div className="w-8 h-8 rounded-full border-2 border-accent/30 border-t-accent animate-spin mx-auto mb-3" />
+            <p className="text-sm text-white/60">Agent is working...</p>
+            <p className="text-xs text-white/30 mt-1">This may take a few seconds</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className={`space-y-5 ${execResult ? 'hidden' : ''}`}>
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider">Title</label>
             <input
@@ -173,17 +240,18 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated, defaultCli
           <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-white/15 text-white/60 hover:bg-white/10 transition-all duration-200"
+              onClick={handleClose}
+              disabled={executing}
+              className="flex-1 py-2.5 rounded-xl border border-white/15 text-white/60 hover:bg-white/10 transition-all duration-200 disabled:opacity-30"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={submitting || !title.trim()}
+              disabled={submitting || executing || !title.trim()}
               className="flex-1 py-2.5 rounded-xl bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-all duration-200 disabled:opacity-40"
             >
-              {submitting ? 'Creating...' : 'Create Task'}
+              {executing ? 'Executing...' : submitting ? 'Creating...' : 'Create & Execute'}
             </button>
           </div>
         </form>
