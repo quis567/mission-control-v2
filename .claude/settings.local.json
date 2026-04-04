@@ -52,7 +52,9 @@
       "Bash(node -e \"const d=[];process.stdin.on\\('data',c=>d.push\\(c\\)\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d.join\\(''\\)\\);console.log\\('MRR:',r.mrr,'| Clients:',r.totalClients,'| Services:',r.activeServices\\)}\\)\")",
       "Bash(node -e \"const d=[];process.stdin.on\\('data',c=>d.push\\(c\\)\\);process.stdin.on\\('end',\\(\\)=>{const a=JSON.parse\\(d.join\\(''\\)\\);console.log\\('Services:',a.length\\)}\\)\")",
       "Bash(node -e \"const d=[];process.stdin.on\\('data',c=>d.push\\(c\\)\\);process.stdin.on\\('end',\\(\\)=>{const t=JSON.parse\\(d.join\\(''\\)\\);console.log\\('Task created:',t.id,'| Client linked:',t.client_id?'YES':'NO'\\)}\\)\")",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep -n \"middleware.*file.*deprecated\\\\|proxy.*instead\\\\|middleware.*convention\" node_modules/next/dist/server/*.js node_modules/next/dist/build/*.js)",
+      "Bash(mv:*)"
     ]
   }
 }
