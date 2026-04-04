@@ -22,6 +22,9 @@ export default function SeoDashboardPage() {
   const [competitorUrl, setCompetitorUrl] = useState('');
   const [competitorLoading, setCompetitorLoading] = useState(false);
   const [competitorResult, setCompetitorResult] = useState<any>(null);
+  const [crawling, setCrawling] = useState(false);
+  const [crawlResult, setCrawlResult] = useState<any>(null);
+  const [crawlHistory, setCrawlHistory] = useState<any[]>([]);
 
   const fetchData = useCallback(async () => {
     const [wRes, sRes] = await Promise.all([
@@ -35,6 +38,28 @@ export default function SeoDashboardPage() {
   }, [websiteId, router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleCrawl = async () => {
+    setCrawling(true);
+    setCrawlResult(null);
+    try {
+      const res = await fetch('/api/seo/crawl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCrawlResult(data);
+        fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCrawlResult({ error: err.error || 'Crawl failed' });
+      }
+    } catch (e) {
+      setCrawlResult({ error: String(e) });
+    } finally { setCrawling(false); }
+  };
 
   const handleAddPage = async () => {
     if (!newPage.pageUrl.trim()) return;
@@ -122,6 +147,9 @@ export default function SeoDashboardPage() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setAddingPage(true)} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200">+ Add Page</button>
+          <button onClick={handleCrawl} disabled={crawling} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200 disabled:opacity-40">
+            {crawling ? 'Crawling...' : 'Crawl Site'}
+          </button>
           <button onClick={() => setCompetitorModal(true)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200">
             Competitor Analysis
           </button>
@@ -150,6 +178,29 @@ export default function SeoDashboardPage() {
           <p className="text-2xl font-light mt-2 text-emerald-400">{pages.filter(p => (p.seoScore || 0) >= 80).length}</p>
         </div>
       </div>
+
+      {/* Crawl Status */}
+      {crawling && (
+        <div className="glass p-6 mb-6 text-center">
+          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-3">
+            <div className="h-full bg-accent/40 rounded-full animate-pulse" style={{ width: '50%' }} />
+          </div>
+          <p className="text-sm text-white/60">Crawling site and extracting SEO data...</p>
+          <p className="text-xs text-white/30 mt-1">This may take 30-60 seconds</p>
+        </div>
+      )}
+
+      {crawlResult && !crawlResult.error && (
+        <div className="glass p-4 mb-6 border border-emerald-400/20">
+          <p className="text-sm text-emerald-400">{crawlResult.message}</p>
+        </div>
+      )}
+
+      {crawlResult?.error && (
+        <div className="glass p-4 mb-6 border border-red-400/20">
+          <p className="text-sm text-red-400">Crawl error: {crawlResult.error}</p>
+        </div>
+      )}
 
       {/* Audit Result */}
       {auditResult && !auditResult.error && (
