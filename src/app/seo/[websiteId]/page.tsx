@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { exportSeoPdf } from '@/lib/exportSeoPdf';
+import { PageLoader } from '@/components/Spinner';
 
 // ── Score color helpers ──
 
@@ -266,7 +267,7 @@ export default function SeoDashboardPage() {
     setApplyLoading(false);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading...</div></div>;
+  if (loading) return <PageLoader />;
 
   const p = selectedPage;
   const hasPages = pages.length > 0;

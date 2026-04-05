@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { PageLoader } from '@/components/Spinner';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -157,7 +158,7 @@ export default function ClientsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-white/30 text-sm text-center py-16">Loading clients...</div>
+        <PageLoader text="Loading clients..." />
       ) : sorted.length === 0 ? (
         <div className="glass p-12 text-center">
           <p className="text-white/30 text-sm">No clients found</p>

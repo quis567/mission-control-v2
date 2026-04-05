@@ -6,6 +6,7 @@ import CreateTaskModal from './CreateTaskModal';
 import AgentCard from './AgentCard';
 import type { Task, Agent } from '@/lib/agents';
 import { AGENT_ICON_COLORS } from '@/lib/agents';
+import { PageLoader } from '@/components/Spinner';
 
 const COLUMNS = [
   { key: 'inbox', label: 'Inbox' },
@@ -47,11 +48,7 @@ export default function TaskBoard() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-white/30 text-sm">Loading...</div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const workingAgents = agents.filter(a => a.status === 'working');

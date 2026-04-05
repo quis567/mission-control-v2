@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { exportSeoPdf } from '@/lib/exportSeoPdf';
+import { PageLoader } from '@/components/Spinner';
 
 function getSiteType(w: any): 'truepath_managed' | 'external' | 'audit_only' {
   if (w.githubRepoUrl && w.netlifySiteId) return 'truepath_managed';
@@ -139,7 +140,7 @@ export default function WebsitesPage() {
 
       {/* Cards */}
       {loading ? (
-        <div className="text-white/30 text-sm text-center py-16">Loading...</div>
+        <PageLoader />
       ) : filtered.length === 0 ? (
         <div className="glass p-12 text-center text-white/30 text-sm">No websites found.</div>
       ) : (

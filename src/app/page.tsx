@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import IntroAnimation from '@/components/IntroAnimation';
+import { PageLoader } from '@/components/Spinner';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -41,7 +42,7 @@ export default function Dashboard() {
     fetch('/api/dashboard').then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading...</div></div>;
+  if (loading) return <PageLoader />;
 
   const d = data || { kpis: {}, navigation: {}, pipeline: {}, recentActivity: [], revenue: {}, agents: [] };
   const pipelineMax = Math.max(...Object.values(d.pipeline as Record<string, number>), 1);

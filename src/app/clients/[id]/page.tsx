@@ -8,6 +8,7 @@ import { STATUS_COLORS } from '@/components/ClientCard';
 import ServiceCard from '@/components/ServiceCard';
 import LinkCard from '@/components/LinkCard';
 import NoteTimeline from '@/components/NoteTimeline';
+import { PageLoader } from '@/components/Spinner';
 
 const TABS = ['Overview', 'Websites', 'Services', 'Notes', 'Links'];
 
@@ -31,7 +32,7 @@ export default function ClientDetailPage() {
   useEffect(() => { fetchClient(); }, [fetchClient]);
 
   if (loading || !client) {
-    return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading...</div></div>;
+    return <PageLoader />;
   }
 
   return (

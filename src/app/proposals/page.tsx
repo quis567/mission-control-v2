@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import jsPDF from 'jspdf';
+import { PageLoader } from '@/components/Spinner';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'text-white/40 bg-white/5', sent: 'text-sky-400 bg-sky-400/10',
@@ -396,7 +397,7 @@ export default function ProposalsPage() {
   const sentCount = proposals.filter(p => p.status === 'sent').length;
   const acceptedCount = proposals.filter(p => p.status === 'accepted').length;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading...</div></div>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="max-w-5xl mx-auto">

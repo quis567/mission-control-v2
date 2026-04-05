@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { PageLoader } from '@/components/Spinner';
 
 export default function UsersPage() {
   const { data: session } = useSession();
@@ -32,7 +33,7 @@ export default function UsersPage() {
         <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all">+ Add User</button>
       </div>
 
-      {loading ? <div className="text-white/30 text-sm text-center py-16">Loading...</div> : (
+      {loading ? <PageLoader /> : (
         <div className="space-y-3">
           {users.map(user => (
             <div key={user.id} className="glass p-5">

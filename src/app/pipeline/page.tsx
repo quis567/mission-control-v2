@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import PipelineColumn from '@/components/PipelineColumn';
 import CreateTaskModal from '@/components/CreateTaskModal';
+import { PageLoader } from '@/components/Spinner';
 
 const PIPELINE_COLUMNS = [
   { status: 'lead', label: 'Lead', color: 'bg-blue-400', revenueLabel: 'est.' },
@@ -62,7 +63,7 @@ export default function PipelinePage() {
   const totalFunnel = pipelineCount + activeCount;
   const conversionRate = totalFunnel > 0 ? Math.round((activeCount / totalFunnel) * 100) : 0;
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading pipeline...</div></div>;
+  if (loading) return <PageLoader text="Loading pipeline..." />;
 
   return (
     <div className="max-w-full mx-auto">
