@@ -34,7 +34,7 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-light tracking-wide text-white/90">Mission Control</h1>
+          <h1 className="text-3xl font-light tracking-wide text-white/90">COMMAND CENTER</h1>
           <p className="text-sm text-white/40 mt-1">TruePath Studios Operations</p>
         </div>
         <button

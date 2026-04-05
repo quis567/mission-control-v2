@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
 
     const updatedContent = Buffer.from(updatedHtml, 'utf8').toString('base64');
     const changedFields = Object.keys(changes).filter(k => changes[k]);
-    const commitMessage = `SEO: Update ${changedFields.join(', ')} for ${pageUrl} — via Mission Control`;
+    const commitMessage = `SEO: Update ${changedFields.join(', ')} for ${pageUrl} — via Command Center`;
 
     const { ok, data } = await githubPut(`/repos/${repo.owner}/${repo.repo}/contents/${filePath}`, {
       message: commitMessage,

@@ -46,7 +46,7 @@ export default function LoginPage() {
             className="mx-auto mb-4 brightness-0 invert"
             style={{ height: '70px', width: 'auto' }}
           />
-          <h1 className="text-2xl font-light tracking-wide text-white/90">Mission Control</h1>
+          <h1 className="text-2xl font-light tracking-wide text-white/90">COMMAND CENTER</h1>
           <p className="text-sm text-white/40 mt-1">TruePath Studios</p>
         </div>
 

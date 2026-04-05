@@ -16,7 +16,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Mission Control v2 — TruePath Studios",
+  title: "Command Center — TruePath Studios",
   description: "Business Operations Orchestration Platform",
   icons: {
     icon: "/favicon.png",
