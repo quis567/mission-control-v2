@@ -19,6 +19,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const fetchClient = useCallback(async () => {
     const res = await fetch(`/api/clients/${clientId}`);
@@ -55,6 +56,7 @@ export default function ClientDetailPage() {
             {client.monthlyRevenue != null && (
               <p className="text-lg font-light text-emerald-400">${client.monthlyRevenue.toLocaleString()}<span className="text-xs text-white/30">/mo</span></p>
             )}
+            <button onClick={() => setShowEditModal(true)} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all duration-200">Edit</button>
             <button onClick={() => setShowTaskModal(true)} className="px-3 py-1.5 rounded-xl bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all duration-200">+ Task</button>
             <a href={`/proposals?clientId=${clientId}`} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all duration-200">Proposal</a>
             <button onClick={async () => {
@@ -101,6 +103,14 @@ export default function ClientDetailPage() {
         defaultClientId={clientId}
         defaultTitle={`[${client.businessName}] `}
       />
+
+      {showEditModal && (
+        <EditClientModal
+          client={client}
+          onClose={() => setShowEditModal(false)}
+          onSaved={() => { setShowEditModal(false); fetchClient(); }}
+        />
+      )}
     </div>
   );
 }
@@ -430,6 +440,71 @@ function ServicesTab({ clientId, services, onRefresh }: { clientId: string; serv
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function EditClientModal({ client, onClose, onSaved }: { client: any; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    businessName: client.businessName || '',
+    contactName: client.contactName || '',
+    email: client.email || '',
+    phone: client.phone || '',
+    businessType: client.businessType || '',
+    city: client.city || '',
+    state: client.state || '',
+    status: client.status || 'lead',
+    monthlyRevenue: client.monthlyRevenue?.toString() || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.businessName.trim()) return;
+    setSaving(true);
+    const res = await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...form, monthlyRevenue: form.monthlyRevenue ? parseFloat(form.monthlyRevenue) : null }),
+    });
+    setSaving(false);
+    if (res.ok) onSaved();
+  };
+
+  const set = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="glass-elevated p-8 w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-light tracking-wide text-white mb-6">Edit Client</h2>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div><label className="text-xs text-white/50 uppercase tracking-wider">Business Name *</label><input value={form.businessName} onChange={e => set('businessName', e.target.value)} className="mt-1" required /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">Contact Name</label><input value={form.contactName} onChange={e => set('contactName', e.target.value)} className="mt-1" /></div>
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">Business Type</label><input value={form.businessType} onChange={e => set('businessType', e.target.value)} className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">Email</label><input type="email" value={form.email} onChange={e => set('email', e.target.value)} className="mt-1" /></div>
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">Phone</label><input value={form.phone} onChange={e => set('phone', e.target.value)} className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">City</label><input value={form.city} onChange={e => set('city', e.target.value)} className="mt-1" /></div>
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">State</label><input value={form.state} onChange={e => set('state', e.target.value)} className="mt-1" /></div>
+            <div><label className="text-xs text-white/50 uppercase tracking-wider">Status</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className="mt-1">
+                <option value="lead">Lead</option><option value="prospect">Prospect</option><option value="proposal">Proposal</option>
+                <option value="active">Active</option><option value="paused">Paused</option><option value="churned">Churned</option>
+              </select>
+            </div>
+          </div>
+          <div><label className="text-xs text-white/50 uppercase tracking-wider">Monthly Revenue ($)</label><input type="number" value={form.monthlyRevenue} onChange={e => set('monthlyRevenue', e.target.value)} placeholder="0" className="mt-1" /></div>
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/15 text-white/60 hover:bg-white/10 transition-all">Cancel</button>
+            <button type="submit" disabled={saving || !form.businessName.trim()} className="flex-1 py-2.5 rounded-xl bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-all disabled:opacity-40">{saving ? 'Saving...' : 'Save Changes'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
