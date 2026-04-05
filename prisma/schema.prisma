@@ -112,6 +112,22 @@ model Package {
   @@map("packages")
 }
 
+model ServiceTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  billingType String   @map("billing_type")
+  category    String
+  features    String
+  isPopular   Boolean  @default(false) @map("is_popular")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("service_templates")
+}
+
 model Client {
   id             String    @id @default(uuid())
   businessName   String    @map("business_name")

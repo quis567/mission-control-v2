@@ -248,53 +248,186 @@ function WebsitesTab({ clientId, websites, onRefresh }: { clientId: string; webs
 }
 
 function ServicesTab({ clientId, services, onRefresh }: { clientId: string; services: any[]; onRefresh: () => void }) {
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ serviceType: '', billingType: 'monthly', price: '', status: 'active' });
+  const [showSelector, setShowSelector] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedPkg, setSelectedPkg] = useState<string | null>(null);
+  const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
+  const [showCustom, setShowCustom] = useState(false);
+  const [customForm, setCustomForm] = useState({ name: '', price: '', billingType: 'one-time', description: '' });
+  const [customServices, setCustomServices] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const handleAdd = async () => {
-    if (!form.serviceType.trim()) return;
-    await fetch(`/api/clients/${clientId}/services`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    setForm({ serviceType: '', billingType: 'monthly', price: '', status: 'active' }); setAdding(false); onRefresh();
+  const loadTemplates = async () => {
+    const res = await fetch('/api/service-templates');
+    if (res.ok) setTemplates(await res.json());
   };
+
+  const openSelector = () => { setShowSelector(true); loadTemplates(); setSelectedPkg(null); setSelectedAddons(new Set()); setCustomServices([]); };
+
+  const toggleAddon = (id: string) => {
+    setSelectedAddons(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const addCustom = () => {
+    if (!customForm.name.trim()) return;
+    setCustomServices(prev => [...prev, { ...customForm, price: parseFloat(customForm.price) || 0 }]);
+    setCustomForm({ name: '', price: '', billingType: 'one-time', description: '' });
+    setShowCustom(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await fetch(`/api/clients/${clientId}/services/assign`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageTemplateId: selectedPkg, addonTemplateIds: Array.from(selectedAddons), customServices }),
+    });
+    setSaving(false); setShowSelector(false); onRefresh();
+  };
+
+  const packages = templates.filter(t => t.category === 'package');
+  const addons = templates.filter(t => t.category === 'addon');
+  const selectedPkgData = packages.find(p => p.id === selectedPkg);
+  const selectedAddonData = addons.filter(a => selectedAddons.has(a.id));
+  const oneTimeTotal = (selectedPkgData?.price || 0) + customServices.filter(c => c.billingType === 'one-time').reduce((s, c) => s + c.price, 0);
+  const monthlyTotal = selectedAddonData.reduce((s, a) => s + a.price, 0) + customServices.filter(c => c.billingType === 'monthly').reduce((s, c) => s + c.price, 0);
+  const hasSelections = selectedPkg || selectedAddons.size > 0 || customServices.length > 0;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-sm text-white/40 uppercase tracking-wider">Services</h3>
-        <button onClick={() => setAdding(!adding)} className="text-xs text-accent hover:text-accent/80">+ Add Service</button>
+        <button onClick={openSelector} className="text-xs text-accent hover:text-accent/80">+ Add Services</button>
       </div>
-      {adding && (
-        <div className="glass p-4 mb-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <select value={form.serviceType} onChange={e => setForm(f => ({ ...f, serviceType: e.target.value }))} className="text-sm">
-              <option value="">Select service...</option>
-              <option>Website Design</option><option>Website Redesign</option><option>Monthly SEO</option>
-              <option>Monthly Maintenance</option><option>Google Business Profile Management</option>
-              <option>Content Creation</option><option>Social Media Management</option><option>Paid Ads Management</option>
-              <option>Hosting</option><option>Domain Management</option>
-            </select>
-            <select value={form.billingType} onChange={e => setForm(f => ({ ...f, billingType: e.target.value }))} className="text-sm">
-              <option value="one-time">One-time</option><option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option><option value="annual">Annual</option>
-            </select>
-          </div>
-          <div className="flex gap-3">
-            <input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} placeholder="Price" className="flex-1 text-sm" />
-            <button onClick={handleAdd} className="px-4 py-1 rounded-lg bg-accent/20 text-accent text-xs">Add</button>
-          </div>
+
+      {/* Existing Services */}
+      {services.length === 0 && !showSelector ? (
+        <div className="glass p-8 text-center">
+          <p className="text-white/30 text-sm mb-3">No services yet</p>
+          <button onClick={openSelector} className="text-accent text-sm hover:text-accent/80">Assign packages & add-ons</button>
+        </div>
+      ) : !showSelector && (
+        <div className="space-y-3">
+          {services.map((s: any) => <ServiceCard key={s.id} service={s} />)}
         </div>
       )}
-      {services.length === 0 ? (
-        <div className="glass p-8 text-center text-white/30 text-sm">No services yet</div>
-      ) : (
-        <div className="space-y-3">
-          {services.map((s: any) => (
-            <ServiceCard key={s.id} service={s} />
-          ))}
+
+      {/* Service Selector */}
+      {showSelector && (
+        <div className="space-y-6">
+          {/* One-Time Packages */}
+          <div>
+            <h4 className="text-xs text-white/40 uppercase tracking-wider mb-3">One-Time Packages (select one)</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {packages.map(pkg => {
+                const isSelected = selectedPkg === pkg.id;
+                let features: string[] = [];
+                try { features = JSON.parse(pkg.features); } catch {}
+                return (
+                  <button key={pkg.id} onClick={() => setSelectedPkg(isSelected ? null : pkg.id)}
+                    className={`glass p-4 text-left transition-all ${isSelected ? 'border border-accent/40 bg-accent/5' : 'border border-transparent hover:border-white/10'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-white/80">{pkg.name}</span>
+                      {pkg.isPopular && <span className="text-[9px] px-2 py-0.5 rounded-full bg-accent/20 text-accent">Most Popular</span>}
+                    </div>
+                    <p className="text-xl font-light text-accent mb-1">${pkg.price.toLocaleString()}</p>
+                    <p className="text-[10px] text-white/25 mb-3">one-time</p>
+                    <div className="space-y-1">
+                      {features.map((f, i) => (
+                        <p key={i} className="text-[10px] text-white/40 flex items-center gap-1.5">
+                          <svg className="w-3 h-3 text-accent/50 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                          {f}
+                        </p>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Monthly Add-ons */}
+          <div>
+            <h4 className="text-xs text-white/40 uppercase tracking-wider mb-3">Monthly Add-ons (select any)</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {addons.map(addon => {
+                const isSelected = selectedAddons.has(addon.id);
+                let features: string[] = [];
+                try { features = JSON.parse(addon.features); } catch {}
+                return (
+                  <button key={addon.id} onClick={() => toggleAddon(addon.id)}
+                    className={`glass p-4 text-left transition-all ${isSelected ? 'border border-accent/40 bg-accent/5' : 'border border-transparent hover:border-white/10'}`}>
+                    <span className="text-sm font-medium text-white/80">{addon.name}</span>
+                    <p className="text-lg font-light text-accent mt-1">${addon.price}<span className="text-xs text-white/25">/mo</span></p>
+                    <div className="space-y-1 mt-2">
+                      {features.map((f, i) => (
+                        <p key={i} className="text-[10px] text-white/40 flex items-center gap-1.5">
+                          <svg className="w-3 h-3 text-accent/50 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                          {f}
+                        </p>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Custom Service */}
+          <div>
+            <button onClick={() => setShowCustom(!showCustom)} className="flex items-center gap-1 text-xs text-white/30 hover:text-white/50">
+              <svg className={`w-3 h-3 transition-transform ${showCustom ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+              Add Custom Service
+            </button>
+            {showCustom && (
+              <div className="glass p-4 mt-2 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={customForm.name} onChange={e => setCustomForm(f => ({ ...f, name: e.target.value }))} placeholder="Service name" className="text-sm" />
+                  <input type="number" value={customForm.price} onChange={e => setCustomForm(f => ({ ...f, price: e.target.value }))} placeholder="Price" className="text-sm" />
+                </div>
+                <div className="flex gap-3">
+                  <select value={customForm.billingType} onChange={e => setCustomForm(f => ({ ...f, billingType: e.target.value }))} className="text-sm flex-1">
+                    <option value="one-time">One-time</option><option value="monthly">Monthly</option>
+                  </select>
+                  <button onClick={addCustom} disabled={!customForm.name.trim()} className="px-4 py-1 rounded-lg bg-accent/20 text-accent text-xs disabled:opacity-40">Add</button>
+                </div>
+              </div>
+            )}
+            {customServices.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {customServices.map((cs, i) => (
+                  <div key={i} className="flex items-center justify-between glass-subtle p-2 text-xs">
+                    <span className="text-white/60">{cs.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-accent">${cs.price}{cs.billingType === 'monthly' ? '/mo' : ''}</span>
+                      <button onClick={() => setCustomServices(prev => prev.filter((_, j) => j !== i))} className="text-white/20 hover:text-red-400">x</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Summary Bar */}
+          <div className="glass p-4 border border-white/10">
+            <h4 className="text-xs text-white/40 uppercase tracking-wider mb-3">Summary</h4>
+            {!hasSelections ? (
+              <p className="text-xs text-white/25">Select packages and add-ons above</p>
+            ) : (
+              <div className="space-y-1.5">
+                {selectedPkgData && <div className="flex justify-between text-xs"><span className="text-white/60">{selectedPkgData.name} Package</span><span className="text-accent">${selectedPkgData.price.toLocaleString()} (one-time)</span></div>}
+                {selectedAddonData.map(a => <div key={a.id} className="flex justify-between text-xs"><span className="text-white/60">{a.name}</span><span className="text-accent">${a.price}/mo</span></div>)}
+                {customServices.map((cs, i) => <div key={i} className="flex justify-between text-xs"><span className="text-white/60">{cs.name}</span><span className="text-accent">${cs.price}{cs.billingType === 'monthly' ? '/mo' : ''}</span></div>)}
+                <div className="pt-2 mt-2 border-t border-white/10 space-y-1">
+                  {oneTimeTotal > 0 && <div className="flex justify-between text-xs"><span className="text-white/40">One-time total</span><span className="text-white/70">${oneTimeTotal.toLocaleString()}</span></div>}
+                  {monthlyTotal > 0 && <div className="flex justify-between text-xs"><span className="text-white/40">Monthly total</span><span className="text-white/70">${monthlyTotal}/mo</span></div>}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setShowSelector(false)} className="px-4 py-2 rounded-lg border border-white/15 text-white/40 text-xs">Cancel</button>
+              <button onClick={handleSave} disabled={!hasSelections || saving} className="px-4 py-2 rounded-lg bg-accent/20 text-accent text-xs disabled:opacity-40">{saving ? 'Saving...' : 'Save Services'}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
