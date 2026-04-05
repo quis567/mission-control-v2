@@ -1,29 +1,138 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import SEOScoreBadge, { SCORE_COLOR } from '@/components/SEOScoreBadge';
+
+// ── Score color helpers ──
+
+function scoreColor(score: number) {
+  if (score >= 80) return 'text-emerald-400';
+  if (score >= 50) return 'text-amber-400';
+  return 'text-red-400';
+}
+function scoreDot(score: number) {
+  if (score >= 80) return 'bg-emerald-400';
+  if (score >= 50) return 'bg-amber-400';
+  return 'bg-red-400';
+}
+function scoreRing(score: number) {
+  if (score >= 80) return '#10b981';
+  if (score >= 50) return '#f59e0b';
+  return '#ef4444';
+}
+function importanceBadge(imp: string) {
+  switch (imp) {
+    case 'critical': return 'bg-red-400/15 text-red-400';
+    case 'important': return 'bg-amber-400/15 text-amber-400';
+    case 'tip': return 'bg-white/10 text-white/50';
+    default: return 'bg-white/5 text-white/30';
+  }
+}
+function importanceLabel(imp: string) {
+  switch (imp) {
+    case 'critical': return 'Critical';
+    case 'important': return 'Important';
+    case 'tip': return 'Tip';
+    default: return imp;
+  }
+}
+
+// ── Circular Gauge Component ──
+
+function ScoreGauge({ score, size = 160 }: { score: number; size?: number }) {
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const r = (size - 16) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (animatedScore / 100) * circumference;
+
+  useEffect(() => {
+    let frame: number;
+    let start: number | null = null;
+    const duration = 1000;
+    const animate = (ts: number) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      setAnimatedScore(Math.round(progress * score));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [score]);
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="transform -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke={scoreRing(score)} strokeWidth="8" fill="none"
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          className="transition-all duration-1000 ease-out" />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-3xl font-light ${scoreColor(score)}`}>{animatedScore}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Check Card Component ──
+
+function CheckCard({ title, importance, checks, value, borderColor }: {
+  title: string;
+  importance: string;
+  checks: { label: string; pass: boolean; warn?: boolean }[];
+  value?: string;
+  borderColor: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const passCount = checks.filter(c => c.pass).length;
+
+  return (
+    <div className={`glass overflow-hidden border-l-2 ${borderColor}`}>
+      <button onClick={() => setOpen(!open)} className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-white/80">{title}</span>
+          <span className="text-xs text-white/30">{passCount}/{checks.length}</span>
+          <span className={`text-xs px-2 py-0.5 rounded ${importanceBadge(importance)}`}>{importanceLabel(importance)}</span>
+        </div>
+        <svg className={`w-4 h-4 text-white/30 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-1.5">
+          {value && <p className="text-xs text-white/50 mb-2 italic break-all">&quot;{value}&quot;</p>}
+          {checks.map((c, i) => (
+            <div key={i} className={`flex items-start gap-2 text-xs px-2 py-1.5 rounded ${c.pass ? 'bg-emerald-400/5' : c.warn ? 'bg-amber-400/5' : 'bg-red-400/5'}`}>
+              <span>{c.pass ? '✅' : c.warn ? '⚠️' : '❌'}</span>
+              <span className={c.pass ? 'text-white/50' : c.warn ? 'text-amber-400/80' : 'text-red-400/80'}>{c.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ──
 
 export default function SeoDashboardPage() {
   const params = useParams();
   const router = useRouter();
   const websiteId = params.websiteId as string;
+
   const [website, setWebsite] = useState<any>(null);
   const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>('overview');
+  const [crawling, setCrawling] = useState(false);
+  const [crawlResult, setCrawlResult] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('meta');
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<any>(null);
-  const [auditResult, setAuditResult] = useState<any>(null);
-  const [editingPage, setEditingPage] = useState<string | null>(null);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyResult, setApplyResult] = useState<any>(null);
   const [competitorModal, setCompetitorModal] = useState(false);
   const [competitorUrl, setCompetitorUrl] = useState('');
   const [competitorLoading, setCompetitorLoading] = useState(false);
   const [competitorResult, setCompetitorResult] = useState<any>(null);
-  const [crawling, setCrawling] = useState(false);
-  const [crawlResult, setCrawlResult] = useState<any>(null);
-  const [crawlProgress, setCrawlProgress] = useState('');
-  const [lastCrawled, setLastCrawled] = useState<string | null>(null);
-  const [expandedPage, setExpandedPage] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const [wRes, sRes] = await Promise.all([
@@ -31,107 +140,268 @@ export default function SeoDashboardPage() {
       fetch(`/api/websites/${websiteId}/seo`),
     ]);
     if (!wRes.ok) { router.push('/websites'); return; }
-    const websiteData = await wRes.json();
+    setWebsite(await wRes.json());
     const pagesData = await sRes.json();
-    setWebsite(websiteData);
     setPages(pagesData);
-    // Find last crawled date from pages
     if (pagesData.length > 0) {
-      const dates = pagesData.map((p: any) => p.lastAudited).filter(Boolean);
-      if (dates.length > 0) {
-        const latest = new Date(Math.max(...dates.map((d: string) => new Date(d).getTime())));
-        setLastCrawled(latest.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }));
-      }
+      setSelectedPageId(prev => {
+        if (prev === 'overview') return 'overview';
+        if (prev && pagesData.some((p: any) => p.id === prev)) return prev;
+        return 'overview';
+      });
     }
     setLoading(false);
   }, [websiteId, router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleFullSiteAudit = async () => {
-    setCrawling(true);
-    setCrawlResult(null);
-    setCrawlProgress('Fetching homepage and discovering pages...');
-    try {
-      const res = await fetch('/api/seo/crawl', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCrawlResult(data);
-        setCrawlProgress('');
-        fetchData();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setCrawlResult({ error: err.error || 'Crawl failed' });
-        setCrawlProgress('');
+  const isOverview = selectedPageId === 'overview';
+  const selectedPage = useMemo(() => isOverview ? null : pages.find(p => p.id === selectedPageId), [pages, selectedPageId, isOverview]);
+  const issues = useMemo(() => {
+    if (isOverview) {
+      // Aggregate all issues from all pages
+      const all: any[] = [];
+      for (const pg of pages) {
+        try {
+          const pgIssues = JSON.parse(pg.issues || '[]');
+          for (const issue of pgIssues) {
+            let pathLabel: string;
+            try { pathLabel = new URL(pg.pageUrl).pathname; } catch { pathLabel = pg.pageUrl; }
+            all.push({ ...issue, page: pathLabel });
+          }
+        } catch { /* skip */ }
       }
-    } catch (e) {
-      setCrawlResult({ error: String(e) });
-      setCrawlProgress('');
-    } finally { setCrawling(false); }
+      return all;
+    }
+    if (!selectedPage?.issues) return [];
+    try { return JSON.parse(selectedPage.issues); } catch { return []; }
+  }, [selectedPage, isOverview, pages]);
+  const crawlData = useMemo(() => {
+    if (!selectedPage?.crawlData) return {};
+    try { return JSON.parse(selectedPage.crawlData); } catch { return {}; }
+  }, [selectedPage]);
+  const headingStructure = useMemo(() => {
+    if (!selectedPage?.headingStructure) return {};
+    try { return JSON.parse(selectedPage.headingStructure); } catch { return {}; }
+  }, [selectedPage]);
+  const lastCrawled = useMemo(() => {
+    const dates = pages.map(p => p.lastAudited).filter(Boolean);
+    if (dates.length === 0) return null;
+    const latest = new Date(Math.max(...dates.map((d: string) => new Date(d).getTime())));
+    return latest.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }, [pages]);
+
+  // Overview aggregate scores
+  const overviewScores = useMemo(() => {
+    if (pages.length === 0) return { seoScore: 0, metaScore: 0, qualityScore: 0, structureScore: 0, linkScore: 0, serverScore: 0 };
+    const avg = (key: string) => Math.round(pages.reduce((s, p) => s + (p[key] || 0), 0) / pages.length);
+    return { seoScore: avg('seoScore'), metaScore: avg('metaScore'), qualityScore: avg('qualityScore'), structureScore: avg('structureScore'), linkScore: avg('linkScore'), serverScore: avg('serverScore') };
+  }, [pages]);
+
+  // ── Handlers ──
+
+  const handleCrawl = async () => {
+    setCrawling(true); setCrawlResult(null);
+    try {
+      const res = await fetch('/api/seo/crawl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ websiteId }) });
+      const data = await res.json();
+      setCrawlResult(res.ok ? data : { error: data.error || 'Crawl failed' });
+      if (res.ok) fetchData();
+    } catch (e) { setCrawlResult({ error: String(e) }); }
+    finally { setCrawling(false); }
   };
 
-  const handleUpdateField = async (seoPageId: string, field: string, value: string) => {
-    await fetch(`/api/websites/${websiteId}/seo`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seoPageId, [field]: value }),
-    });
-    fetchData();
-  };
-
-  const handleGenerateMeta = async (page: any) => {
-    setAiLoading(page.id); setAiResult(null);
+  const handleGenerateMeta = async () => {
+    if (!selectedPage) return;
+    setAiLoading('meta'); setAiResult(null);
     try {
       const res = await fetch('/api/seo/generate-meta', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetKeyword: page.targetKeyword, currentTitle: page.pageTitle, currentDescription: page.metaDescription, pageContent: `Page: ${page.pageUrl}. Title: ${page.pageTitle}. H1: ${page.h1Tag}.` }),
+        body: JSON.stringify({ targetKeyword: selectedPage.targetKeyword, currentTitle: selectedPage.pageTitle, currentDescription: selectedPage.metaDescription, pageContent: `Page: ${selectedPage.pageUrl}. Title: ${selectedPage.pageTitle}. H1: ${selectedPage.h1Tag}. Words: ${selectedPage.wordCount}.` }),
       });
-      setAiResult({ type: 'meta', pageId: page.id, data: await res.json() });
+      setAiResult({ type: 'meta', data: await res.json() });
     } catch { setAiResult({ type: 'error', data: 'Failed to generate' }); }
     setAiLoading(null);
   };
 
-  const handleSuggestKeywords = async (page: any) => {
-    setAiLoading(page.id); setAiResult(null);
+  const handleSuggestKeywords = async () => {
+    if (!selectedPage) return;
+    setAiLoading('keywords'); setAiResult(null);
     try {
       const res = await fetch('/api/seo/suggest-keywords', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageUrl: page.pageUrl, pageContent: `Page: ${page.pageUrl}. Title: ${page.pageTitle}. H1: ${page.h1Tag}.`, businessType: website?.client?.businessName }),
+        body: JSON.stringify({ pageUrl: selectedPage.pageUrl, pageContent: `Page: ${selectedPage.pageUrl}. Title: ${selectedPage.pageTitle}. H1: ${selectedPage.h1Tag}.`, businessType: website?.client?.businessName }),
       });
-      setAiResult({ type: 'keywords', pageId: page.id, data: await res.json() });
-    } catch { setAiResult({ type: 'error', data: 'Failed to suggest keywords' }); }
+      setAiResult({ type: 'keywords', data: await res.json() });
+    } catch { setAiResult({ type: 'error', data: 'Failed' }); }
     setAiLoading(null);
   };
 
-  const applyMeta = async (pageId: string, title: string, description: string) => {
-    await fetch(`/api/websites/${websiteId}/seo`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seoPageId: pageId, pageTitle: title, metaDescription: description, changedBy: 'ai' }),
-    });
-    setAiResult(null); fetchData();
+  const handleRewriteContent = async () => {
+    if (!selectedPage) return;
+    setAiLoading('rewrite'); setAiResult(null);
+    try {
+      const res = await fetch('/api/seo/rewrite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageUrl: selectedPage.pageUrl, currentContent: `Title: ${selectedPage.pageTitle}. H1: ${selectedPage.h1Tag}. Description: ${selectedPage.metaDescription}.`, targetKeyword: selectedPage.targetKeyword || '' }),
+      });
+      setAiResult({ type: 'rewrite', data: await res.json() });
+    } catch { setAiResult({ type: 'error', data: 'Failed' }); }
+    setAiLoading(null);
   };
 
-  const applyKeyword = async (pageId: string, keyword: string) => {
-    await handleUpdateField(pageId, 'targetKeyword', keyword);
-    setAiResult(null);
+  const handleApplyChanges = async (changes: Record<string, string>) => {
+    if (!selectedPage) return;
+    setApplyLoading(true); setApplyResult(null);
+    try {
+      const res = await fetch('/api/seo/apply-changes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteId, pageUrl: selectedPage.pageUrl, changes }),
+      });
+      const data = await res.json();
+      setApplyResult(data);
+      if (data.success) { setAiResult(null); fetchData(); }
+    } catch (e) { setApplyResult({ error: String(e) }); }
+    setApplyLoading(false);
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="text-white/30 text-sm">Loading...</div></div>;
 
-  const avgScore = pages.length > 0 ? Math.round(pages.reduce((s, p) => s + (p.seoScore || 0), 0) / pages.length) : 0;
+  const p = selectedPage;
   const hasPages = pages.length > 0;
+
+  // ── Build check cards for tabs ──
+
+  function buildMetaChecks() {
+    if (!p) return [];
+    return [
+      { title: 'Title', importance: 'critical', value: p.pageTitle || '', checks: [
+        { label: p.pageTitle ? 'Page has a title tag' : 'No title tag found', pass: !!p.pageTitle },
+        { label: `Title length: ${p.titleLength || 0} chars (target: 30-60)`, pass: !!p.titleLength && p.titleLength >= 30 && p.titleLength <= 60, warn: !!p.titleLength && (p.titleLength < 30 || p.titleLength > 60) },
+      ]},
+      { title: 'Meta Description', importance: 'critical', value: p.metaDescription || '', checks: [
+        { label: p.metaDescription ? 'Has meta description' : 'No meta description', pass: !!p.metaDescription },
+        { label: `Length: ${p.metaDescLength || 0} chars (target: 120-160)`, pass: !!p.metaDescLength && p.metaDescLength >= 120 && p.metaDescLength <= 160, warn: !!p.metaDescLength && (p.metaDescLength < 120 || p.metaDescLength > 160) },
+      ]},
+      { title: 'Canonical Link', importance: 'important', checks: [
+        { label: p.canonicalUrl ? `Canonical: ${p.canonicalUrl}` : 'No canonical link tag', pass: !!p.canonicalUrl },
+      ]},
+      { title: 'Language', importance: 'important', checks: [
+        { label: p.language ? `lang="${p.language}"` : 'No lang attribute on HTML', pass: !!p.language },
+      ]},
+      { title: 'Open Graph Tags', importance: 'important', checks: [
+        { label: crawlData.ogTitle ? `og:title = "${crawlData.ogTitle}"` : 'Missing og:title', pass: !!crawlData.ogTitle },
+        { label: crawlData.ogDesc ? `og:description present` : 'Missing og:description', pass: !!crawlData.ogDesc },
+        { label: crawlData.ogImage ? 'og:image present' : 'Missing og:image', pass: !!crawlData.ogImage, warn: !crawlData.ogImage },
+      ]},
+      { title: 'Twitter Card Tags', importance: 'tip', checks: [
+        { label: p.hasTwitterTags ? 'Twitter card tags present' : 'No Twitter card tags', pass: p.hasTwitterTags },
+      ]},
+      { title: 'Favicon', importance: 'tip', checks: [
+        { label: p.hasFavicon ? 'Favicon found' : 'No favicon linked in HTML', pass: p.hasFavicon, warn: !p.hasFavicon },
+      ]},
+      { title: 'Charset Encoding', importance: 'important', checks: [
+        { label: p.hasCharset ? 'UTF-8 charset declared' : 'No charset encoding', pass: p.hasCharset },
+      ]},
+      { title: 'HTML5 Doctype', importance: 'important', checks: [
+        { label: p.hasDoctype ? 'HTML5 doctype present' : 'No doctype declaration', pass: p.hasDoctype },
+      ]},
+    ];
+  }
+
+  function buildQualityChecks() {
+    if (!p) return [];
+    return [
+      { title: 'Content', importance: 'critical', checks: [
+        { label: `Word count: ${p.wordCount || 0} (target: 300+)`, pass: (p.wordCount || 0) >= 300, warn: (p.wordCount || 0) > 0 && (p.wordCount || 0) < 300 },
+        { label: `${p.paragraphCount || 0} paragraphs found (target: 3+)`, pass: (p.paragraphCount || 0) >= 3 },
+        { label: crawlData.hasStrongTags ? 'Uses bold/strong emphasis' : 'No bold/strong tags found', pass: !!crawlData.hasStrongTags, warn: !crawlData.hasStrongTags },
+      ]},
+      { title: 'Mobile Optimization', importance: 'critical', checks: [
+        { label: p.hasViewport ? 'Viewport meta tag present' : 'No viewport tag (mobile unfriendly)', pass: p.hasViewport },
+      ]},
+      { title: 'Image SEO', importance: 'important', checks: [
+        { label: `${p.imagesWithAlt || 0} of ${p.imagesTotal || 0} images have alt text`, pass: (p.imagesTotal || 0) === 0 || (p.imagesWithAlt || 0) === (p.imagesTotal || 0), warn: (p.imagesTotal || 0) > 0 && (p.imagesWithAlt || 0) < (p.imagesTotal || 0) },
+      ]},
+      { title: 'Frames', importance: 'tip', checks: [
+        { label: crawlData.hasIframes ? 'Page uses iframes' : 'No iframes detected', pass: !crawlData.hasIframes, warn: !!crawlData.hasIframes },
+      ]},
+    ];
+  }
+
+  function buildStructureChecks() {
+    if (!p) return [];
+    const headingsArr: { tag: string; text: string }[] = crawlData.headings || [];
+    return [
+      { title: 'H1 Heading', importance: 'critical', value: p.h1Tag || '', checks: [
+        { label: p.h1Count === 1 ? 'Exactly one H1 tag' : p.h1Count === 0 ? 'No H1 tag found' : `${p.h1Count} H1 tags found (should be 1)`, pass: p.h1Count === 1 },
+      ]},
+      { title: 'Heading Hierarchy', importance: 'important', checks: [
+        { label: (headingStructure['h2'] || 0) > 0 ? `Uses H2 subheadings (${headingStructure['h2']})` : 'No H2 subheadings', pass: (headingStructure['h2'] || 0) > 0 },
+        { label: crawlData.headingHierarchyOk ? 'Logical heading hierarchy' : 'Heading levels skip (e.g., H1 → H3)', pass: !!crawlData.headingHierarchyOk },
+        ...headingsArr.slice(0, 15).map(h => ({ label: `<${h.tag}> ${h.text}`, pass: true })),
+      ]},
+    ];
+  }
+
+  function buildLinkChecks() {
+    if (!p) return [];
+    return [
+      { title: 'Internal Links', importance: 'important', checks: [
+        { label: `${p.internalLinks || 0} internal links found`, pass: (p.internalLinks || 0) >= 2, warn: (p.internalLinks || 0) > 0 && (p.internalLinks || 0) < 2 },
+      ]},
+      { title: 'External Links', importance: 'tip', checks: [
+        { label: (p.externalLinks || 0) > 0 ? `${p.externalLinks} external links` : 'No external links (Google values outbound links)', pass: (p.externalLinks || 0) > 0, warn: (p.externalLinks || 0) === 0 },
+      ]},
+    ];
+  }
+
+  function buildServerChecks() {
+    if (!p) return [];
+    return [
+      { title: 'HTTPS', importance: 'critical', checks: [
+        { label: p.isHttps ? 'Page served over HTTPS' : 'Not using HTTPS', pass: p.isHttps },
+      ]},
+      { title: 'Performance', importance: 'important', checks: [
+        { label: `Response time: ${p.responseTime || 0}ms (target: <400ms)`, pass: (p.responseTime || 0) < 400, warn: (p.responseTime || 0) >= 400 },
+        { label: `HTML size: ${Math.round((p.htmlSize || 0) / 1024)}KB (target: <100KB)`, pass: (p.htmlSize || 0) < 100000 },
+      ]},
+    ];
+  }
+
+  const tabChecks: Record<string, { title: string; importance: string; value?: string; checks: { label: string; pass: boolean; warn?: boolean }[] }[]> = {
+    meta: buildMetaChecks(),
+    quality: buildQualityChecks(),
+    structure: buildStructureChecks(),
+    links: buildLinkChecks(),
+    server: buildServerChecks(),
+  };
+
+  const tabScores: Record<string, number> = {
+    meta: isOverview ? overviewScores.metaScore : (p?.metaScore || 0),
+    quality: isOverview ? overviewScores.qualityScore : (p?.qualityScore || 0),
+    structure: isOverview ? overviewScores.structureScore : (p?.structureScore || 0),
+    links: isOverview ? overviewScores.linkScore : (p?.linkScore || 0),
+    server: isOverview ? overviewScores.serverScore : (p?.serverScore || 0),
+  };
+
+  const tabs = [
+    { id: 'meta', label: 'Meta Data' },
+    { id: 'quality', label: 'Page Quality' },
+    { id: 'structure', label: 'Page Structure' },
+    { id: 'links', label: 'Link Structure' },
+    { id: 'server', label: 'Server Config' },
+  ];
 
   return (
     <div className="max-w-6xl mx-auto">
+      {/* Back */}
       <button onClick={() => router.back()} className="text-white/40 text-sm hover:text-white/60 transition-colors mb-6 flex items-center gap-1">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
         Back
       </button>
 
-      {/* Header */}
+      {/* A. Header Bar */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-light tracking-wide text-white/90">SEO Dashboard</h1>
@@ -139,17 +409,9 @@ export default function SeoDashboardPage() {
           {lastCrawled && <p className="text-xs text-white/25 mt-0.5">Last crawled: {lastCrawled}</p>}
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleFullSiteAudit}
-            disabled={crawling}
-            className="px-5 py-2 rounded-xl bg-accent/30 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/40 transition-all duration-200 disabled:opacity-40 shadow-lg shadow-accent/10"
-          >
-            {crawling ? (
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                Crawling...
-              </span>
-            ) : hasPages ? 'Re-crawl Site' : 'Full Site Audit'}
+          <button onClick={handleCrawl} disabled={crawling}
+            className="px-5 py-2 rounded-xl bg-accent/30 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/40 transition-all duration-200 disabled:opacity-40 shadow-lg shadow-accent/10">
+            {crawling ? <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Crawling...</span> : hasPages ? 'Re-Crawl Site ↻' : 'Full Site Audit'}
           </button>
           <button onClick={() => setCompetitorModal(true)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200">
             Competitor Analysis
@@ -157,229 +419,292 @@ export default function SeoDashboardPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="glass p-5">
-          <p className="text-xs text-white/40 uppercase tracking-wider">Pages</p>
-          <p className="text-2xl font-light mt-2 text-accent">{pages.length}</p>
-        </div>
-        <div className="glass p-5">
-          <p className="text-xs text-white/40 uppercase tracking-wider">Avg Score</p>
-          <p className={`text-2xl font-light mt-2 ${SCORE_COLOR(avgScore)}`}>{avgScore}</p>
-        </div>
-        <div className="glass p-5">
-          <p className="text-xs text-white/40 uppercase tracking-wider">Issues</p>
-          <p className="text-2xl font-light mt-2 text-amber-400">{pages.filter(p => (p.seoScore || 0) < 50).length}</p>
-        </div>
-        <div className="glass p-5">
-          <p className="text-xs text-white/40 uppercase tracking-wider">Optimized</p>
-          <p className="text-2xl font-light mt-2 text-emerald-400">{pages.filter(p => (p.seoScore || 0) >= 80).length}</p>
-        </div>
-      </div>
-
-      {/* Crawl Progress */}
+      {/* Crawl Status */}
       {crawling && (
         <div className="glass p-6 mb-6 text-center">
           <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-3">
             <div className="h-full bg-accent/40 rounded-full animate-pulse" style={{ width: '60%' }} />
           </div>
-          <p className="text-sm text-white/60">{crawlProgress || 'Crawling site and extracting SEO data...'}</p>
-          <p className="text-xs text-white/30 mt-1">Fetching pages, parsing HTML, extracting SEO data</p>
+          <p className="text-sm text-white/60">Crawling site — fetching pages, parsing HTML, extracting SEO data...</p>
+          <p className="text-xs text-white/30 mt-1">This may take 30-60 seconds</p>
         </div>
       )}
+      {crawlResult && !crawlResult.error && <div className="glass p-4 mb-6 border border-emerald-400/20"><p className="text-sm text-emerald-400">{crawlResult.message}</p></div>}
+      {crawlResult?.error && <div className="glass p-4 mb-6 border border-red-400/20"><p className="text-sm text-red-400">{crawlResult.error}</p></div>}
 
-      {crawlResult && !crawlResult.error && (
-        <div className="glass p-4 mb-6 border border-emerald-400/20">
-          <p className="text-sm text-emerald-400">{crawlResult.message}</p>
-        </div>
-      )}
-
-      {crawlResult?.error && (
-        <div className="glass p-4 mb-6 border border-red-400/20">
-          <p className="text-sm text-red-400">Crawl error: {crawlResult.error}</p>
-        </div>
-      )}
-
-      {/* Audit Result (from AI audit) */}
-      {auditResult && !auditResult.error && (
-        <div className="glass p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm uppercase tracking-wider text-white/40">Site Audit Results</h2>
-            <button onClick={() => setAuditResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
-          </div>
-          <p className="text-sm text-white/70 mb-4">{auditResult.summary}</p>
-          {auditResult.priorityActions?.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs text-white/40 mb-2">Priority Actions:</p>
-              <div className="space-y-1">
-                {auditResult.priorityActions.map((a: string, i: number) => (
-                  <p key={i} className="text-xs text-accent">• {a}</p>
-                ))}
-              </div>
-            </div>
-          )}
-          {auditResult.issues?.length > 0 && (
-            <div className="space-y-2">
-              {auditResult.issues.map((issue: any, i: number) => (
-                <div key={i} className={`glass-subtle p-3 border-l-2 ${issue.severity === 'critical' ? 'border-l-red-400' : issue.severity === 'important' ? 'border-l-amber-400' : 'border-l-white/20'}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs ${issue.severity === 'critical' ? 'text-red-400' : issue.severity === 'important' ? 'text-amber-400' : 'text-white/40'}`}>{issue.severity}</span>
-                    <span className="text-xs text-white/30">{issue.page}</span>
-                  </div>
-                  <p className="text-xs text-white/60">{issue.issue}</p>
-                  <p className="text-xs text-white/40 mt-1">{issue.recommendation}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* AI Result Panel */}
-      {aiResult && aiResult.type === 'meta' && aiResult.data && (
-        <div className="glass p-6 mb-6 glow-accent">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm text-accent">AI-Generated Meta Tags</h3>
-            <button onClick={() => setAiResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
-          </div>
-          <div className="space-y-3">
-            <div><p className="text-xs text-white/40">Title ({aiResult.data.titleLength} chars)</p><p className="text-sm text-white/80">{aiResult.data.title}</p></div>
-            <div><p className="text-xs text-white/40">Description ({aiResult.data.descriptionLength} chars)</p><p className="text-sm text-white/80">{aiResult.data.description}</p></div>
-            {aiResult.data.reasoning && <p className="text-xs text-white/30">{aiResult.data.reasoning}</p>}
-          </div>
-          <button onClick={() => applyMeta(aiResult.pageId, aiResult.data.title, aiResult.data.description)} className="mt-4 px-4 py-1.5 rounded-lg bg-accent/20 text-accent text-xs">Apply Changes</button>
-        </div>
-      )}
-
-      {aiResult && aiResult.type === 'keywords' && aiResult.data?.keywords && (
-        <div className="glass p-6 mb-6 glow-accent">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm text-accent">Suggested Keywords</h3>
-            <button onClick={() => setAiResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
-          </div>
-          <div className="space-y-2">
-            {aiResult.data.keywords.map((kw: any, i: number) => (
-              <div key={i} className="glass-subtle p-3 flex items-center justify-between">
-                <div>
-                  <span className="text-sm text-white/80">{kw.keyword}</span>
-                  <span className={`text-xs ml-2 ${kw.relevance === 'high' ? 'text-emerald-400' : kw.relevance === 'medium' ? 'text-amber-400' : 'text-white/30'}`}>{kw.relevance}</span>
-                  {kw.reasoning && <p className="text-xs text-white/30 mt-0.5">{kw.reasoning}</p>}
-                </div>
-                <button onClick={() => applyKeyword(aiResult.pageId, kw.keyword)} className="text-xs text-accent hover:text-accent/80">Use</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pages List */}
-      {pages.length === 0 && !crawling ? (
+      {/* Empty state */}
+      {!hasPages && !crawling && (
         <div className="glass p-12 text-center">
           <div className="text-white/20 mb-4">
             <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>
           </div>
           <p className="text-white/40 text-sm mb-2">No pages crawled yet</p>
-          <p className="text-white/25 text-xs mb-6">Click "Full Site Audit" to crawl {website?.url} and discover all pages</p>
-          <button
-            onClick={handleFullSiteAudit}
-            disabled={crawling}
-            className="px-6 py-2.5 rounded-xl bg-accent/30 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/40 transition-all duration-200 shadow-lg shadow-accent/10"
-          >
-            Full Site Audit
-          </button>
+          <p className="text-white/25 text-xs mb-6">Click &quot;Full Site Audit&quot; to crawl {website?.url} and discover all pages</p>
+          <button onClick={handleCrawl} disabled={crawling} className="px-6 py-2.5 rounded-xl bg-accent/30 border border-accent/40 text-accent text-sm font-medium hover:bg-accent/40 transition-all duration-200 shadow-lg shadow-accent/10">Full Site Audit</button>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {pages.map(page => (
-            <div key={page.id} className="glass p-5 cursor-pointer hover:bg-white/[0.03] transition-colors" onClick={() => setExpandedPage(expandedPage === page.id ? null : page.id)}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <SEOScoreBadge score={page.seoScore || 0} />
-                  <div>
-                    <p className="text-sm text-white/80">{page.pageUrl}</p>
-                    {page.targetKeyword && <p className="text-xs text-white/30">Keyword: {page.targetKeyword}</p>}
-                  </div>
-                </div>
-                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => setEditingPage(editingPage === page.id ? null : page.id)} className="px-2 py-1 rounded text-xs text-white/30 hover:text-white/60 hover:bg-white/5">Edit</button>
-                  <button onClick={() => handleGenerateMeta(page)} disabled={aiLoading === page.id} className="px-2 py-1 rounded text-xs text-accent/60 hover:text-accent hover:bg-accent/5 disabled:opacity-30">
-                    {aiLoading === page.id ? '...' : 'Gen Meta'}
+      )}
+
+      {/* Dashboard content when pages exist */}
+      {hasPages && (p || isOverview) && (
+        <>
+          {/* B. Page Selector Pills */}
+          <div className="glass p-3 mb-6">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="text-xs text-white/30 shrink-0">Pages:</span>
+              <button onClick={() => { setSelectedPageId('overview'); setAiResult(null); setApplyResult(null); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs shrink-0 transition-all ${isOverview ? 'bg-accent/20 border border-accent/30 text-accent' : 'bg-white/5 border border-white/10 text-white/50 hover:bg-white/10'}`}>
+                <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                <span>All Pages</span>
+                <span className={`text-[10px] ${scoreColor(overviewScores.seoScore)}`}>{overviewScores.seoScore}</span>
+              </button>
+              {pages.map(page => {
+                const isActive = page.id === selectedPageId;
+                let pathOnly: string;
+                try { pathOnly = new URL(page.pageUrl).pathname; } catch { pathOnly = page.pageUrl; }
+                return (
+                  <button key={page.id} onClick={() => { setSelectedPageId(page.id); setAiResult(null); setApplyResult(null); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs shrink-0 transition-all ${isActive ? 'bg-accent/20 border border-accent/30 text-accent' : 'bg-white/5 border border-white/10 text-white/50 hover:bg-white/10'}`}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${scoreDot(page.seoScore || 0)}`} />
+                    <span className="truncate max-w-[180px]">{pathOnly || '/'}</span>
+                    <span className={`text-[10px] ${scoreColor(page.seoScore || 0)}`}>{page.seoScore || 0}</span>
                   </button>
-                  <button onClick={() => handleSuggestKeywords(page)} disabled={aiLoading === page.id} className="px-2 py-1 rounded text-xs text-accent/60 hover:text-accent hover:bg-accent/5 disabled:opacity-30">Keywords</button>
+                );
+              })}
+              <span className="text-xs text-white/20 shrink-0">({pages.length} pages)</span>
+            </div>
+          </div>
+
+          {/* C. Overall Score Gauge + Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="glass p-6 flex flex-col items-center justify-center md:col-span-1">
+              <ScoreGauge score={isOverview ? overviewScores.seoScore : (p?.seoScore || 0)} />
+              <p className="text-xs text-white/40 mt-2">{isOverview ? 'Site-Wide SEO Score' : 'Page SEO Score'}</p>
+              <p className="text-xs text-white/25 mt-0.5 truncate max-w-full">{isOverview ? `${pages.length} pages analyzed` : (() => { try { return new URL(p!.pageUrl).pathname; } catch { return p!.pageUrl || '/'; } })()}</p>
+            </div>
+            <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="glass p-4"><p className="text-xs text-white/40">Pages</p><p className="text-xl font-light mt-1 text-accent">{pages.length}</p></div>
+              <div className="glass p-4"><p className="text-xs text-white/40">Avg Score</p><p className={`text-xl font-light mt-1 ${scoreColor(Math.round(pages.reduce((s, pg) => s + (pg.seoScore || 0), 0) / pages.length))}`}>{Math.round(pages.reduce((s, pg) => s + (pg.seoScore || 0), 0) / pages.length)}</p></div>
+              <div className="glass p-4"><p className="text-xs text-white/40">Issues</p><p className="text-xl font-light mt-1 text-amber-400">{issues.length}</p></div>
+              <div className="glass p-4"><p className="text-xs text-white/40">Optimized</p><p className="text-xl font-light mt-1 text-emerald-400">{pages.filter(pg => (pg.seoScore || 0) >= 80).length}</p></div>
+            </div>
+          </div>
+
+          {/* D. TO-DO List */}
+          {issues.length > 0 && (() => {
+            // In overview, sort by importance and limit to 25
+            const sortOrder: Record<string, number> = { critical: 0, important: 1, tip: 2 };
+            const sorted = [...issues].sort((a: any, b: any) => (sortOrder[a.importance] ?? 3) - (sortOrder[b.importance] ?? 3));
+            const displayed = isOverview ? sorted.slice(0, 25) : sorted;
+            const remaining = isOverview ? Math.max(0, sorted.length - 25) : 0;
+            return (
+              <div className="glass p-5 mb-6">
+                <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">
+                  TO-DO List {isOverview && <span className="text-white/25 normal-case font-normal">({issues.length} total across all pages)</span>}
+                </h2>
+                <div className="space-y-1">
+                  {displayed.map((issue: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                      <span className="text-xs text-white/60">{isOverview && issue.page ? <span className="text-white/30 mr-1.5">{issue.page}</span> : null}{issue.issue}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] px-2 py-0.5 rounded ${importanceBadge(issue.importance)}`}>{importanceLabel(issue.importance)}</span>
+                        {!isOverview && issue.fixable === 'meta' && (
+                          <button onClick={handleGenerateMeta} disabled={!!aiLoading} className="text-[10px] px-2 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 disabled:opacity-30">Fix with AI</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {remaining > 0 && <p className="text-xs text-white/25 text-center pt-2">+ {remaining} more issues (select a page to see all)</p>}
                 </div>
               </div>
+            );
+          })()}
+          {issues.length === 0 && <div className="glass p-4 mb-6 border border-emerald-400/20 text-center"><p className="text-sm text-emerald-400">{isOverview ? 'No issues found across all pages!' : 'No issues found for this page!'}</p></div>}
 
-              {/* SEO Summary Row */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <p className="text-white/30">Title</p>
-                  <p className={`text-white/60 truncate ${!page.pageTitle ? 'text-red-400 font-medium' : (page.titleLength || 0) < 30 || (page.titleLength || 0) > 65 ? 'text-amber-400' : ''}`}>
-                    {page.pageTitle || 'Missing'} {page.titleLength ? <span className="text-white/20">({page.titleLength})</span> : null}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-white/30">Meta Desc</p>
-                  <p className={`text-white/60 truncate ${!page.metaDescription ? 'text-red-400 font-medium' : (page.metaDescLength || 0) < 120 || (page.metaDescLength || 0) > 160 ? 'text-amber-400' : ''}`}>
-                    {page.metaDescription ? `${page.metaDescription.substring(0, 50)}...` : 'Missing'} {page.metaDescLength ? <span className="text-white/20">({page.metaDescLength})</span> : null}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-white/30">H1</p>
-                  <p className={`text-white/60 truncate ${!page.h1Tag ? 'text-red-400 font-medium' : page.h1Count !== 1 ? 'text-amber-400' : ''}`}>
-                    {page.h1Tag || 'Missing'} {page.h1Count != null && page.h1Count !== 1 ? `(${page.h1Count} found)` : ''}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-white/30">Content</p>
-                  <p className="text-white/60">{page.wordCount || 0} words · {page.imagesTotal || 0} imgs ({page.imagesWithAlt || 0} alt) · {page.internalLinks || 0}int {page.externalLinks || 0}ext</p>
-                </div>
+          {/* Overview: Pages Table */}
+          {isOverview && (
+            <div className="mb-6">
+              <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">All Pages</h2>
+              <div className="space-y-2">
+                {[...pages].sort((a, b) => (a.seoScore || 0) - (b.seoScore || 0)).map(page => {
+                  let pathOnly: string;
+                  try { pathOnly = new URL(page.pageUrl).pathname; } catch { pathOnly = page.pageUrl; }
+                  const pageIssueCount = (() => { try { return JSON.parse(page.issues || '[]').length; } catch { return 0; } })();
+                  return (
+                    <button key={page.id} onClick={() => { setSelectedPageId(page.id); setAiResult(null); }}
+                      className="glass w-full p-4 flex items-center gap-4 text-left hover:bg-white/[0.03] transition-colors">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${(page.seoScore || 0) >= 80 ? 'bg-emerald-400/15 text-emerald-400' : (page.seoScore || 0) >= 50 ? 'bg-amber-400/15 text-amber-400' : 'bg-red-400/15 text-red-400'}`}>
+                        {page.seoScore || 0}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white/70 truncate">{pathOnly || '/'}</p>
+                        <p className="text-xs text-white/30 truncate">{page.pageTitle || 'No title'}</p>
+                      </div>
+                      <div className="grid grid-cols-5 gap-3 text-[10px] text-center shrink-0">
+                        <div><p className="text-white/25">Meta</p><p className={scoreColor(page.metaScore || 0)}>{page.metaScore || 0}%</p></div>
+                        <div><p className="text-white/25">Quality</p><p className={scoreColor(page.qualityScore || 0)}>{page.qualityScore || 0}%</p></div>
+                        <div><p className="text-white/25">Structure</p><p className={scoreColor(page.structureScore || 0)}>{page.structureScore || 0}%</p></div>
+                        <div><p className="text-white/25">Links</p><p className={scoreColor(page.linkScore || 0)}>{page.linkScore || 0}%</p></div>
+                        <div><p className="text-white/25">Server</p><p className={scoreColor(page.serverScore || 0)}>{page.serverScore || 0}%</p></div>
+                      </div>
+                      <div className="text-right shrink-0 w-16">
+                        {pageIssueCount > 0 ? (
+                          <span className="text-xs text-amber-400">{pageIssueCount} issues</span>
+                        ) : (
+                          <span className="text-xs text-emerald-400">Clean</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Overview: Category Score Breakdown */}
+          {isOverview && (
+            <div className="mb-6">
+              <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">Category Averages</h2>
+              <div className="grid grid-cols-5 gap-3">
+                {[{ label: 'Meta Data', score: overviewScores.metaScore }, { label: 'Page Quality', score: overviewScores.qualityScore }, { label: 'Page Structure', score: overviewScores.structureScore }, { label: 'Link Structure', score: overviewScores.linkScore }, { label: 'Server Config', score: overviewScores.serverScore }].map(cat => (
+                  <div key={cat.label} className="glass p-4 text-center">
+                    <p className={`text-2xl font-light ${scoreColor(cat.score)}`}>{cat.score}%</p>
+                    <p className="text-xs text-white/30 mt-1">{cat.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Per-page: Category Tabs + Check Cards */}
+          {!isOverview && (
+            <>
+              <div className="sticky top-0 z-10 glass mb-4 flex overflow-x-auto">
+                {tabs.map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-3 text-xs shrink-0 border-b-2 transition-all ${activeTab === tab.id ? 'border-accent text-accent' : 'border-transparent text-white/40 hover:text-white/60'}`}>
+                    {tab.label}
+                    <span className={`${scoreColor(tabScores[tab.id])} text-[10px]`}>{tabScores[tab.id]}%</span>
+                  </button>
+                ))}
               </div>
 
-              {/* Expanded Details */}
-              {expandedPage === page.id && (
-                <div className="mt-4 pt-4 border-t border-white/10 space-y-3" onClick={e => e.stopPropagation()}>
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <p className="text-white/30 mb-1">Full Title</p>
-                      <p className="text-white/60">{page.pageTitle || 'None'}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/30 mb-1">Full Meta Description</p>
-                      <p className="text-white/60">{page.metaDescription || 'None'}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/30 mb-1">H1 Tag</p>
-                      <p className="text-white/60">{page.h1Tag || 'None'}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/30 mb-1">Heading Structure</p>
-                      <p className="text-white/60">{page.headingStructure || 'None'}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button onClick={() => handleGenerateMeta(page)} disabled={aiLoading === page.id} className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs hover:bg-accent/25 disabled:opacity-30">
-                      {aiLoading === page.id ? 'Generating...' : 'Generate Meta Tags'}
-                    </button>
-                    <button onClick={() => handleSuggestKeywords(page)} disabled={aiLoading === page.id} className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs hover:bg-accent/25 disabled:opacity-30">
-                      Suggest Keywords
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="space-y-3 mb-8">
+                {tabChecks[activeTab]?.map((card, i) => {
+                  const allPass = card.checks.every(c => c.pass);
+                  const hasWarn = card.checks.some(c => c.warn);
+                  const borderColor = allPass ? 'border-l-emerald-400' : hasWarn ? 'border-l-amber-400' : 'border-l-red-400';
+                  return <CheckCard key={i} title={card.title} importance={card.importance} checks={card.checks} value={card.value} borderColor={borderColor} />;
+                })}
+              </div>
+            </>
+          )}
 
-              {/* Inline Edit */}
-              {editingPage === page.id && (
-                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-3" onClick={e => e.stopPropagation()}>
-                  <div><label className="text-xs text-white/30">Title</label><input defaultValue={page.pageTitle || ''} onBlur={e => handleUpdateField(page.id, 'pageTitle', e.target.value)} className="mt-1 text-sm" /></div>
-                  <div><label className="text-xs text-white/30">Target Keyword</label><input defaultValue={page.targetKeyword || ''} onBlur={e => handleUpdateField(page.id, 'targetKeyword', e.target.value)} className="mt-1 text-sm" /></div>
-                  <div className="col-span-2"><label className="text-xs text-white/30">Meta Description</label><input defaultValue={page.metaDescription || ''} onBlur={e => handleUpdateField(page.id, 'metaDescription', e.target.value)} className="mt-1 text-sm" /></div>
-                  <div><label className="text-xs text-white/30">H1 Tag</label><input defaultValue={page.h1Tag || ''} onBlur={e => handleUpdateField(page.id, 'h1Tag', e.target.value)} className="mt-1 text-sm" /></div>
-                  <div><label className="text-xs text-white/30">Word Count</label><input type="number" defaultValue={page.wordCount || 0} onBlur={e => handleUpdateField(page.id, 'wordCount', e.target.value)} className="mt-1 text-sm" /></div>
-                </div>
+          {/* F. AI SEO Tools (per-page only) */}
+          {!isOverview && (
+          <div className="mb-6">
+            <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">AI SEO Tools</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <button onClick={handleGenerateMeta} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
+                <p className="text-sm text-accent mb-1">{aiLoading === 'meta' ? 'Generating...' : 'Generate Meta Tags'}</p>
+                <p className="text-xs text-white/30">AI-optimized title & description</p>
+              </button>
+              <button onClick={handleSuggestKeywords} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
+                <p className="text-sm text-accent mb-1">{aiLoading === 'keywords' ? 'Analyzing...' : 'Suggest Keywords'}</p>
+                <p className="text-xs text-white/30">Find target keywords</p>
+              </button>
+              <button onClick={handleRewriteContent} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
+                <p className="text-sm text-accent mb-1">{aiLoading === 'rewrite' ? 'Rewriting...' : 'Rewrite Content'}</p>
+                <p className="text-xs text-white/30">SEO-optimized copy</p>
+              </button>
+              <button onClick={() => setCompetitorModal(true)} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors">
+                <p className="text-sm text-accent mb-1">Keyword Analysis</p>
+                <p className="text-xs text-white/30">Compare with competitors</p>
+              </button>
+            </div>
+          </div>
+          )}
+
+          {/* AI Result Panel */}
+          {aiResult && aiResult.type === 'meta' && aiResult.data && (
+            <div className="glass p-6 mb-6 border border-accent/20">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm text-accent">AI-Generated Meta Tags</h3>
+                <button onClick={() => setAiResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
+              </div>
+              <div className="space-y-3 mb-4">
+                <div><p className="text-xs text-white/40">Title ({aiResult.data.titleLength || aiResult.data.title?.length} chars)</p><p className="text-sm text-white/80">{aiResult.data.title}</p></div>
+                <div><p className="text-xs text-white/40">Description ({aiResult.data.descriptionLength || aiResult.data.description?.length} chars)</p><p className="text-sm text-white/80">{aiResult.data.description}</p></div>
+                {aiResult.data.reasoning && <p className="text-xs text-white/30">{aiResult.data.reasoning}</p>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => handleApplyChanges({ title: aiResult.data.title, metaDescription: aiResult.data.description })} disabled={applyLoading}
+                  className="px-4 py-1.5 rounded-lg bg-accent/20 text-accent text-xs hover:bg-accent/30 disabled:opacity-30">
+                  {applyLoading ? 'Applying...' : 'Apply to Live Site'}
+                </button>
+                <button onClick={() => {
+                  // Save to DB only
+                  fetch(`/api/websites/${websiteId}/seo`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ seoPageId: p.id, pageTitle: aiResult.data.title, metaDescription: aiResult.data.description, changedBy: 'ai' }),
+                  }).then(() => { setAiResult(null); fetchData(); });
+                }} className="px-4 py-1.5 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/15">Save to DB Only</button>
+              </div>
+            </div>
+          )}
+
+          {aiResult && aiResult.type === 'keywords' && aiResult.data?.keywords && (
+            <div className="glass p-6 mb-6 border border-accent/20">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm text-accent">Suggested Keywords</h3>
+                <button onClick={() => setAiResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
+              </div>
+              <div className="space-y-2">
+                {aiResult.data.keywords.map((kw: any, i: number) => (
+                  <div key={i} className="glass-subtle p-3 flex items-center justify-between">
+                    <div>
+                      <span className="text-sm text-white/80">{kw.keyword}</span>
+                      <span className={`text-xs ml-2 ${kw.relevance === 'high' ? 'text-emerald-400' : kw.relevance === 'medium' ? 'text-amber-400' : 'text-white/30'}`}>{kw.relevance}</span>
+                      {kw.reasoning && <p className="text-xs text-white/30 mt-0.5">{kw.reasoning}</p>}
+                    </div>
+                    <button onClick={() => {
+                      fetch(`/api/websites/${websiteId}/seo`, {
+                        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ seoPageId: p.id, targetKeyword: kw.keyword }),
+                      }).then(() => fetchData());
+                    }} className="text-xs text-accent hover:text-accent/80">Use</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {aiResult && aiResult.type === 'rewrite' && aiResult.data && (
+            <div className="glass p-6 mb-6 border border-accent/20">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm text-accent">AI Content Rewrite</h3>
+                <button onClick={() => setAiResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
+              </div>
+              {aiResult.data.rewrittenContent && <div className="text-xs text-white/60 whitespace-pre-wrap max-h-64 overflow-y-auto mb-3">{aiResult.data.rewrittenContent}</div>}
+              {aiResult.data.changes?.length > 0 && (
+                <div className="space-y-1 mb-3">{aiResult.data.changes.map((c: string, i: number) => <p key={i} className="text-xs text-accent/70">• {c}</p>)}</div>
               )}
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Apply Result */}
+          {applyResult && (
+            <div className={`glass p-4 mb-6 border ${applyResult.success ? 'border-emerald-400/20' : 'border-red-400/20'}`}>
+              {applyResult.success ? (
+                <div>
+                  <p className="text-sm text-emerald-400">{applyResult.message}</p>
+                  {applyResult.commitUrl && <a href={applyResult.commitUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline mt-1 inline-block">View on GitHub →</a>}
+                </div>
+              ) : (
+                <p className="text-sm text-red-400">{applyResult.error}</p>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Competitor Analysis Modal */}
@@ -389,38 +714,21 @@ export default function SeoDashboardPage() {
           <div className="glass-elevated p-8 w-full max-w-2xl relative z-10 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-light tracking-wide text-white mb-4">Competitor Analysis</h2>
             <p className="text-xs text-white/40 mb-4">Comparing against: {website?.url}</p>
-
             {!competitorResult && (
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-white/50 uppercase tracking-wider">Competitor URL</label>
-                  <input
-                    value={competitorUrl}
-                    onChange={e => setCompetitorUrl(e.target.value)}
-                    placeholder="https://competitor.com"
-                    className="mt-1 text-sm"
-                    autoFocus
-                  />
+                  <input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="https://competitor.com" className="mt-1 text-sm" autoFocus />
                 </div>
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setCompetitorModal(false)} className="px-4 py-2 rounded-xl border border-white/15 text-white/40 text-sm">Cancel</button>
-                  <button
-                    onClick={async () => {
-                      if (!competitorUrl.trim()) return;
-                      setCompetitorLoading(true);
-                      try {
-                        const res = await fetch('/api/seo/competitor-analysis', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ clientWebsiteId: websiteId, competitorUrl: competitorUrl.trim() }),
-                        });
-                        setCompetitorResult(await res.json());
-                      } catch { setCompetitorResult({ summary: 'Analysis failed' }); }
-                      setCompetitorLoading(false);
-                    }}
-                    disabled={competitorLoading || !competitorUrl.trim()}
-                    className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200 disabled:opacity-40"
-                  >
+                  <button onClick={async () => {
+                    if (!competitorUrl.trim()) return;
+                    setCompetitorLoading(true);
+                    try { const res = await fetch('/api/seo/competitor-analysis', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientWebsiteId: websiteId, competitorUrl: competitorUrl.trim() }) }); setCompetitorResult(await res.json()); }
+                    catch { setCompetitorResult({ summary: 'Analysis failed' }); }
+                    setCompetitorLoading(false);
+                  }} disabled={competitorLoading || !competitorUrl.trim()} className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200 disabled:opacity-40">
                     {competitorLoading ? 'Analyzing...' : 'Analyze'}
                   </button>
                 </div>
@@ -432,58 +740,14 @@ export default function SeoDashboardPage() {
                 )}
               </div>
             )}
-
             {competitorResult && (
               <div className="space-y-4">
-                {competitorResult.summary && (
-                  <div className="glass-subtle p-4">
-                    <p className="text-xs text-white/40 mb-1">Summary</p>
-                    <p className="text-sm text-white/70">{competitorResult.summary}</p>
-                  </div>
-                )}
-
-                {competitorResult.competitorStrengths?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Competitor Strengths</p>
-                    <div className="space-y-1">{competitorResult.competitorStrengths.map((s: string, i: number) => <p key={i} className="text-xs text-red-400/80">- {s}</p>)}</div>
-                  </div>
-                )}
-
-                {competitorResult.clientStrengths?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Your Strengths</p>
-                    <div className="space-y-1">{competitorResult.clientStrengths.map((s: string, i: number) => <p key={i} className="text-xs text-emerald-400/80">- {s}</p>)}</div>
-                  </div>
-                )}
-
-                {competitorResult.gaps?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Gaps to Address</p>
-                    <div className="space-y-1">{competitorResult.gaps.map((s: string, i: number) => <p key={i} className="text-xs text-amber-400/80">- {s}</p>)}</div>
-                  </div>
-                )}
-
-                {competitorResult.opportunities?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Opportunities</p>
-                    <div className="space-y-1">{competitorResult.opportunities.map((s: string, i: number) => <p key={i} className="text-xs text-accent/80">- {s}</p>)}</div>
-                  </div>
-                )}
-
-                {competitorResult.keywordSuggestions?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Keyword Suggestions</p>
-                    <div className="flex flex-wrap gap-1.5">{competitorResult.keywordSuggestions.map((kw: string, i: number) => <span key={i} className="text-xs bg-accent/10 text-accent/70 px-2 py-0.5 rounded">{kw}</span>)}</div>
-                  </div>
-                )}
-
-                {competitorResult.contentIdeas?.length > 0 && (
-                  <div>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mb-2">Content Ideas</p>
-                    <div className="space-y-1">{competitorResult.contentIdeas.map((s: string, i: number) => <p key={i} className="text-xs text-white/50">- {s}</p>)}</div>
-                  </div>
-                )}
-
+                {competitorResult.summary && <div className="glass-subtle p-4"><p className="text-xs text-white/40 mb-1">Summary</p><p className="text-sm text-white/70">{competitorResult.summary}</p></div>}
+                {competitorResult.competitorStrengths?.length > 0 && <div><p className="text-xs text-white/40 uppercase tracking-wider mb-2">Competitor Strengths</p>{competitorResult.competitorStrengths.map((s: string, i: number) => <p key={i} className="text-xs text-red-400/80">- {s}</p>)}</div>}
+                {competitorResult.clientStrengths?.length > 0 && <div><p className="text-xs text-white/40 uppercase tracking-wider mb-2">Your Strengths</p>{competitorResult.clientStrengths.map((s: string, i: number) => <p key={i} className="text-xs text-emerald-400/80">- {s}</p>)}</div>}
+                {competitorResult.gaps?.length > 0 && <div><p className="text-xs text-white/40 uppercase tracking-wider mb-2">Gaps</p>{competitorResult.gaps.map((s: string, i: number) => <p key={i} className="text-xs text-amber-400/80">- {s}</p>)}</div>}
+                {competitorResult.opportunities?.length > 0 && <div><p className="text-xs text-white/40 uppercase tracking-wider mb-2">Opportunities</p>{competitorResult.opportunities.map((s: string, i: number) => <p key={i} className="text-xs text-accent/80">- {s}</p>)}</div>}
+                {competitorResult.keywordSuggestions?.length > 0 && <div><p className="text-xs text-white/40 uppercase tracking-wider mb-2">Keywords</p><div className="flex flex-wrap gap-1.5">{competitorResult.keywordSuggestions.map((kw: string, i: number) => <span key={i} className="text-xs bg-accent/10 text-accent/70 px-2 py-0.5 rounded">{kw}</span>)}</div></div>}
                 <div className="flex gap-2 justify-end pt-2">
                   <button onClick={() => { setCompetitorResult(null); setCompetitorUrl(''); }} className="px-3 py-1.5 rounded-lg border border-white/15 text-white/40 text-xs">New Analysis</button>
                   <button onClick={() => { setCompetitorModal(false); setCompetitorResult(null); setCompetitorUrl(''); }} className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-xs">Close</button>
