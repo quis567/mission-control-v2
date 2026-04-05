@@ -13,14 +13,13 @@ export default function IntroAnimation({ onComplete }: { onComplete: () => void 
 
     const t1 = setTimeout(() => setPhase('title'), 500);
     const t2 = setTimeout(() => setPhase('subtitle'), 2000);
-    const t3 = setTimeout(() => setPhase('flare'), 3500);
-    const t4 = setTimeout(() => {
+    const t3 = setTimeout(() => {
       setPhase('fadeout');
       setTimeout(onComplete, 1000);
-    }, 4000);
+    }, 3500);
 
     return () => {
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
       audio.pause();
     };
   }, [onComplete]);
@@ -116,24 +115,6 @@ export default function IntroAnimation({ onComplete }: { onComplete: () => void 
           </p>
         )}
       </div>
-
-      {/* Solar flare */}
-      {phase === 'flare' && (
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 0,
-            height: 0,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.8), rgba(0,212,170,0.4), transparent)',
-            animation: 'solarFlare 0.6s ease-out forwards',
-            willChange: 'width, height, opacity',
-          }}
-        />
-      )}
 
       {/* Skip button */}
       <button
