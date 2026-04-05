@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     const websites = await prisma.website.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { client: { select: { businessName: true } } },
+      include: {
+        client: { select: { businessName: true } },
+        seoPages: { select: { seoScore: true }, orderBy: { seoScore: 'asc' } },
+      },
     });
 
     return NextResponse.json(websites);

@@ -240,6 +240,20 @@ function analyzePage(html: string, pageUrl: string, baseUrl: URL, responseTime: 
   };
 }
 
+// ── CMS Detection ──
+
+function detectCms(html: string): string {
+  const lower = html.toLowerCase();
+  if (lower.includes('wp-content') || lower.includes('wordpress') || lower.includes('wp-json')) return 'WordPress';
+  if (lower.includes('wix.com') || lower.includes('wixsite.com') || lower.includes('x-wix')) return 'Wix';
+  if (lower.includes('squarespace.com') || lower.includes('sqsp.net')) return 'Squarespace';
+  if (lower.includes('cdn.shopify.com') || lower.includes('shopify')) return 'Shopify';
+  if (lower.includes('webflow.com') || lower.includes('wf-') ) return 'Webflow';
+  if (lower.includes('duda.co') || lower.includes('dudaone.com')) return 'Duda';
+  if (lower.includes('godaddy.com/websites') || lower.includes('godaddy-dns')) return 'GoDaddy';
+  return 'Static HTML';
+}
+
 // ── POST /api/seo/crawl ────────────────────��────────────────────
 // Full site crawl: discover + analyze all pages
 export async function POST(req: NextRequest) {
@@ -259,6 +273,10 @@ export async function POST(req: NextRequest) {
     // Use the final redirected URL as the base (handles www redirects, etc.)
     const baseUrl = new URL(homepageResult.finalUrl);
     const homepageUrl = baseUrl.href.replace(/\/+$/, '') || baseUrl.origin;
+
+    // Detect CMS from homepage HTML and save to website record
+    const detectedCms = detectCms(homepageResult.html);
+    await prisma.website.update({ where: { id: websiteId }, data: { cmsPlatform: detectedCms } });
 
     const discoveredUrls = new Set<string>([homepageUrl]);
     const linksFromHomepage = discoverLinks(homepageResult.html, homepageUrl, baseUrl);
