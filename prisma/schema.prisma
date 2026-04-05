@@ -190,8 +190,10 @@ model Website {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  netlifySiteId  String?  @map("netlify_site_id")
-  githubRepoUrl  String?  @map("github_repo_url")
+  netlifySiteId       String?   @map("netlify_site_id")
+  githubRepoUrl       String?   @map("github_repo_url")
+  screenshotUrl       String?   @map("screenshot_url")
+  screenshotUpdatedAt DateTime? @map("screenshot_updated_at")
 
   client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   seoPages     SeoPage[]

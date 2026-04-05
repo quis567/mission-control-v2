@@ -41,13 +41,26 @@ export async function POST(req: NextRequest) {
             sslStatus: site.ssl?.state || null,
             lastUpdated: site.published_deploy?.created_at ? new Date(site.published_deploy.created_at) : undefined,
             domainExpiration: site.ssl?.expires_at ? new Date(site.ssl.expires_at) : undefined,
+            ...(site.screenshot_url ? { screenshotUrl: site.screenshot_url, screenshotUpdatedAt: new Date() } : {}),
           },
         });
         synced++;
       } catch { /* skip individual failures */ }
     }
 
-    return NextResponse.json({ synced, total: linkedWebsites.length });
+    // Also populate Thum.io screenshots for non-Netlify sites that lack one
+    const unscreenshotted = await prisma.website.findMany({
+      where: { netlifySiteId: null, screenshotUrl: null, url: { not: '' } },
+    });
+    for (const site of unscreenshotted) {
+      const fullUrl = site.url.startsWith('http') ? site.url : `https://${site.url}`;
+      await prisma.website.update({
+        where: { id: site.id },
+        data: { screenshotUrl: `https://image.thum.io/get/${fullUrl}`, screenshotUpdatedAt: new Date() },
+      });
+    }
+
+    return NextResponse.json({ synced, total: linkedWebsites.length, thumbnails: unscreenshotted.length });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

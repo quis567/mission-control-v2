@@ -34,9 +34,9 @@ export async function PATCH(
     const body = await request.json();
 
     const data: Record<string, unknown> = {};
-    const stringFields = ['url', 'status', 'hostingProvider', 'domainRegistrar', 'sslStatus', 'cmsPlatform', 'gaPropertyId', 'maintenanceDetails', 'notes'];
+    const stringFields = ['url', 'status', 'hostingProvider', 'domainRegistrar', 'sslStatus', 'cmsPlatform', 'gaPropertyId', 'maintenanceDetails', 'notes', 'screenshotUrl'];
     const boolFields = ['gaConnected', 'gscConnected', 'maintenancePlan'];
-    const dateFields = ['domainExpiration', 'launchDate', 'lastUpdated'];
+    const dateFields = ['domainExpiration', 'launchDate', 'lastUpdated', 'screenshotUpdatedAt'];
 
     for (const f of stringFields) { if (f in body) data[f] = body[f]; }
     for (const f of boolFields) { if (f in body) data[f] = !!body[f]; }
