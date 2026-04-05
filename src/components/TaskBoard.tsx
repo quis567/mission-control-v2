@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
-import type { Task } from '@/lib/agents';
+import AgentCard from './AgentCard';
+import type { Task, Agent } from '@/lib/agents';
+import { AGENT_ICON_COLORS } from '@/lib/agents';
 
 const COLUMNS = [
   { key: 'inbox', label: 'Inbox' },
@@ -15,42 +17,49 @@ const COLUMNS = [
 
 export default function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showAgents, setShowAgents] = useState(true);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/tasks');
-      const data = await res.json();
-      setTasks(data);
+      const [tasksRes, agentsRes] = await Promise.all([
+        fetch('/api/tasks'),
+        fetch('/api/agents'),
+      ]);
+      setTasks(await tasksRes.json());
+      setAgents(await agentsRes.json());
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 5000);
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, [fetchTasks]);
+  }, [fetchData]);
 
   const handleExecute = async (taskId: string) => {
     await fetch(`/api/tasks/${taskId}/execute`, { method: 'POST' });
-    fetchTasks();
+    fetchData();
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-white/30 text-sm">Loading tasks...</div>
+        <div className="text-white/30 text-sm">Loading...</div>
       </div>
     );
   }
 
+  const workingAgents = agents.filter(a => a.status === 'working');
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-light tracking-wide text-white/90">Task Board</h1>
+        <h1 className="text-2xl font-light tracking-wide text-white/90">Tasks & Agents</h1>
         <button
           onClick={() => setModalOpen(true)}
           className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-sm hover:bg-accent/30 transition-all duration-200"
@@ -59,6 +68,7 @@ export default function TaskBoard() {
         </button>
       </div>
 
+      {/* Kanban Board */}
       <div className="grid grid-cols-5 gap-4">
         {COLUMNS.map(col => {
           const columnTasks = tasks.filter(t => t.status === col.key);
@@ -86,10 +96,31 @@ export default function TaskBoard() {
         })}
       </div>
 
+      {/* Agent Roster */}
+      <div className="mt-8">
+        <button
+          onClick={() => setShowAgents(!showAgents)}
+          className="flex items-center gap-2 mb-4 group"
+        >
+          <svg className={`w-4 h-4 text-white/30 transition-transform ${showAgents ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+          <h2 className="text-sm uppercase tracking-wider text-white/40">Agent Roster</h2>
+          <span className="text-xs text-white/25">
+            {workingAgents.length} of {agents.length} active
+          </span>
+        </button>
+        {showAgents && (
+          <div className="grid grid-cols-2 gap-4">
+            {agents.map(agent => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        )}
+      </div>
+
       <CreateTaskModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onCreated={fetchTasks}
+        onCreated={fetchData}
       />
     </div>
   );

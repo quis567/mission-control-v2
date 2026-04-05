@@ -15,7 +15,6 @@ const navItems = [
   { href: '/proposals', icon: ProposalIcon, label: 'Proposals' },
   { href: '/reports', icon: ReportsIcon, label: 'Reports' },
   { href: '/revenue', icon: RevenueIcon, label: 'Revenue' },
-  { href: '/agents', icon: AgentsIcon, label: 'Agents' },
 ];
 
 export default function Sidebar() {
