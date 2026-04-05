@@ -101,7 +101,7 @@ export default function PipelineColumn({ status, label, color, clients, revenueL
                   {isLost ? (
                     <p className="text-xs text-white/30">Was: ${(client.monthlyRevenue || 0).toLocaleString()}/mo{client.package ? ` · ${client.package.name}` : ''}</p>
                   ) : (
-                    <p className="text-xs text-accent">{client.monthlyRevenue ? `$${client.monthlyRevenue.toLocaleString()}/mo` : 'No estimate'}{client.package ? ` · ${client.package.name}` : ''}</p>
+                    <p className="text-xs text-accent">{client.monthlyRevenue ? `$${client.monthlyRevenue.toLocaleString()}/mo` : isActive ? '$0/mo' : 'No estimate'}{client.package ? ` · ${client.package.name}` : isActive ? '' : ''}</p>
                   )}
                 </div>
 
