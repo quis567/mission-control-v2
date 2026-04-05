@@ -90,11 +90,13 @@ export default function IntroAnimation({ onComplete }: { onComplete: () => void 
       <div className="mt-6 h-8 flex items-center justify-center">
         {(phase === 'subtitle' || phase === 'flare' || phase === 'fadeout') && (
           <p
-            className="text-lg md:text-xl tracking-[0.2em] uppercase overflow-hidden whitespace-nowrap border-r-2 border-white/60"
+            className="text-lg md:text-xl uppercase overflow-hidden whitespace-nowrap border-r-2 border-white/60"
             style={{
               color: 'rgba(255,255,255,0.8)',
+              letterSpacing: '0.2em',
               animation: 'typing 1.2s steps(22) forwards, blinkCaret 0.5s step-end 3',
               width: '0',
+              maxWidth: 'max-content',
               willChange: 'width',
             }}
           >
@@ -153,7 +155,7 @@ export default function IntroAnimation({ onComplete }: { onComplete: () => void 
         }
         @keyframes typing {
           from { width: 0; }
-          to { width: 22ch; }
+          to { width: 100%; }
         }
         @keyframes blinkCaret {
           50% { border-color: transparent; }
