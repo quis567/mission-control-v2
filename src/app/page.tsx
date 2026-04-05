@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import CreateTaskModal from '@/components/CreateTaskModal';
+import IntroAnimation from '@/components/IntroAnimation';
 import type { Task, Agent } from '@/lib/agents';
 import { STATUS_COLORS, AGENT_ICON_COLORS } from '@/lib/agents';
 
@@ -10,6 +11,14 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+
+  useEffect(() => {
+    if (!sessionStorage.getItem('introPlayed')) {
+      setShowIntro(true);
+      sessionStorage.setItem('introPlayed', 'true');
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     const [tasksRes, agentsRes] = await Promise.all([
@@ -32,6 +41,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      {showIntro && <IntroAnimation onComplete={() => setShowIntro(false)} />}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-light tracking-wide text-white/90">COMMAND CENTER</h1>
