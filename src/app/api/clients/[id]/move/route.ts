@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const client = await prisma.client.update({
     where: { id },
-    data: { status },
+    data: { status, statusChangedAt: new Date() },
   });
 
   return NextResponse.json(client);

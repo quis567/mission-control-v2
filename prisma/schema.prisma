@@ -121,8 +121,9 @@ model Client {
   businessType   String?   @map("business_type")
   city           String?
   state          String?
-  status         String    @default("lead")
-  monthlyRevenue Float?    @map("monthly_revenue")
+  status           String    @default("lead")
+  statusChangedAt  DateTime  @default(now()) @map("status_changed_at")
+  monthlyRevenue   Float?    @map("monthly_revenue")
   dateAcquired   DateTime? @map("date_acquired")
   tags           String?   // JSON array
   packageId      String?   @map("package_id")
