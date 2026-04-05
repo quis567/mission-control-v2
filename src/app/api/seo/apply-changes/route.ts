@@ -145,8 +145,10 @@ export async function POST(req: NextRequest) {
     const repo = parseGitHubUrl(website.githubRepoUrl);
     if (!repo) return NextResponse.json({ error: 'Invalid GitHub repo URL' }, { status: 400 });
 
-    // Map page URL to file path
-    const pagePath = pageUrl === '/' ? '' : pageUrl.replace(/^\//, '').replace(/\/$/, '');
+    // Map page URL to file path — handle both full URLs and paths
+    let pathOnly = pageUrl;
+    try { pathOnly = new URL(pageUrl).pathname; } catch { /* already a path */ }
+    const pagePath = pathOnly === '/' ? '' : pathOnly.replace(/^\//, '').replace(/\/$/, '');
     const candidates = pagePath
       ? [`${pagePath}.html`, `${pagePath}/index.html`]
       : ['index.html'];
