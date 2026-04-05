@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { exportSeoPdf } from '@/lib/exportSeoPdf';
 
 function getSiteType(w: any): 'truepath_managed' | 'external' | 'audit_only' {
   if (w.githubRepoUrl && w.netlifySiteId) return 'truepath_managed';
@@ -231,7 +232,7 @@ export default function WebsitesPage() {
                     <Link href={`/seo/${w.id}`} className="px-3 py-1.5 rounded-lg bg-emerald-400/10 text-emerald-400 text-[11px] hover:bg-emerald-400/20 transition-all">Apply Changes</Link>
                   )}
                   {type === 'external' && (
-                    <Link href={`/seo/${w.id}`} className="px-3 py-1.5 rounded-lg bg-blue-400/10 text-blue-400 text-[11px] hover:bg-blue-400/20 transition-all">Export Recs</Link>
+                    <button onClick={async (e) => { e.preventDefault(); try { await exportSeoPdf(w.id); } catch (err: any) { alert(err.message); } }} className="px-3 py-1.5 rounded-lg bg-blue-400/10 text-blue-400 text-[11px] hover:bg-blue-400/20 transition-all">Export Recs</button>
                   )}
                   {type === 'audit_only' && (
                     <Link href={`/proposals`} className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-[11px] hover:bg-white/10 transition-all">Create Proposal</Link>
