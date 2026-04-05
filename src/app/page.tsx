@@ -31,9 +31,9 @@ export default function Dashboard() {
   const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
-    if (!sessionStorage.getItem('introPlayed')) {
+    if (sessionStorage.getItem('playIntro') === 'true') {
       setShowIntro(true);
-      sessionStorage.setItem('introPlayed', 'true');
+      sessionStorage.removeItem('playIntro');
     }
   }, []);
 

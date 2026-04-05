@@ -25,6 +25,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError('Invalid email or password');
       } else {
+        sessionStorage.setItem('playIntro', 'true');
         router.push('/');
         router.refresh();
       }
