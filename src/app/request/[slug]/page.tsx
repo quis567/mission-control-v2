@@ -18,13 +18,7 @@ const CHANGE_TYPES = [
   'Other',
 ];
 
-const PAGE_LOCATIONS = [
-  'Home page',
-  'About page',
-  'Services page',
-  'Contact page',
-  'Gallery / Portfolio',
-  'Blog',
+const GENERIC_LOCATIONS = [
   'Header / Footer (sitewide)',
   'Entire site',
   'Not sure',
@@ -32,7 +26,7 @@ const PAGE_LOCATIONS = [
 
 export default function ClientRequestForm() {
   const { slug } = useParams<{ slug: string }>();
-  const [client, setClient] = useState<{ id: string; businessName: string; contactName: string } | null>(null);
+  const [client, setClient] = useState<{ id: string; businessName: string; contactName: string; pages?: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -197,7 +191,12 @@ export default function ClientRequestForm() {
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-400/50 transition-colors appearance-none"
             >
               <option value="" className="bg-[#1a1a2e]">Select a page...</option>
-              {PAGE_LOCATIONS.map(p => <option key={p} value={p} className="bg-[#1a1a2e]">{p}</option>)}
+              {(client?.pages || []).length > 0 && (
+                <optgroup label="Your pages">
+                  {client!.pages!.map(p => <option key={p} value={p} className="bg-[#1a1a2e]">{p}</option>)}
+                </optgroup>
+              )}
+              {GENERIC_LOCATIONS.map(p => <option key={p} value={p} className="bg-[#1a1a2e]">{p}</option>)}
             </select>
           </div>
 

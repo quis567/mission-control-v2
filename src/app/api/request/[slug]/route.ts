@@ -10,14 +10,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { slug } = await params;
     const client = await prisma.client.findUnique({
       where: { slug },
-      select: { id: true, businessName: true, contactName: true, email: true },
+      select: {
+        id: true, businessName: true, contactName: true, email: true,
+        websites: {
+          select: { seoPages: { select: { pageUrl: true, pageTitle: true }, orderBy: { pageUrl: 'asc' } } },
+          take: 1,
+        },
+      },
     });
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    return NextResponse.json(client);
+    // Extract page names from crawled SEO pages
+    const pages = (client.websites[0]?.seoPages || []).map(p => {
+      const url = new URL(p.pageUrl, 'https://example.com');
+      const path = url.pathname === '/' ? 'Home page' : url.pathname.replace(/^\/|\/$/g, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      return p.pageTitle || path;
+    });
+
+    return NextResponse.json({ id: client.id, businessName: client.businessName, contactName: client.contactName, email: client.email, pages });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
