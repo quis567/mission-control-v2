@@ -420,17 +420,23 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
     const optimizedCount = results.filter(r => r.changes[0] !== 'No changes needed').length;
     const pushedCount = results.filter(r => r.pushed).length;
 
-    // Trigger Netlify deploy if we pushed changes and site has a Netlify ID
+    // Trigger Netlify deploy if we pushed changes or updated layout and site has a Netlify ID
     let netlifyDeployed = false;
-    if (pushedCount > 0 && website.netlifySiteId) {
+    if ((pushedCount > 0 || nextLayoutUpdated) && website.netlifySiteId) {
       const deploy = await triggerNetlifyDeploy(website.netlifySiteId);
       netlifyDeployed = deploy.ok;
     }
 
     const parts = [`Optimized ${optimizedCount} of ${pages.length} pages`];
-    if (canPushToGitHub) parts.push(`${pushedCount} pushed to GitHub`);
+    if (nextLayoutUpdated) parts.push('canonical + twitter tags added to layout');
+    if (canPushToGitHub && !isNextJs) parts.push(`${pushedCount} pushed to GitHub`);
+    if (isNextJs && canPushToGitHub) parts.push('pushed to GitHub');
     if (netlifyDeployed) parts.push('Netlify deploy triggered');
-    else if (pushedCount > 0 && !website.netlifySiteId) parts.push('no Netlify site linked');
+    else if ((pushedCount > 0 || nextLayoutUpdated) && !website.netlifySiteId) parts.push('no Netlify site linked');
+
+    // Add layout-level changes to results for visibility
+    const siteWideChanges: string[] = [];
+    if (nextLayoutUpdated) siteWideChanges.push('canonical URLs', 'twitter cards', 'metadataBase');
 
     return NextResponse.json({
       success: true,
@@ -438,6 +444,7 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
       results,
       pushed: pushedCount,
       netlifyDeployed,
+      siteWideChanges,
     });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

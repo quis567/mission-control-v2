@@ -685,6 +685,14 @@ export default function SeoDashboardPage() {
                     <span className="text-sm text-emerald-400">✓ {bulkResult.message}</span>
                     <button onClick={() => setBulkResult(null)} className="text-xs text-white/30 hover:text-white/60 ml-auto">Dismiss</button>
                   </div>
+                  {bulkResult.siteWideChanges?.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded bg-accent/5 border border-accent/10">
+                      <span className="text-xs text-accent/70">Site-wide:</span>
+                      {bulkResult.siteWideChanges.map((c: string) => (
+                        <span key={c} className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded">{c}</span>
+                      ))}
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     {bulkResult.results?.map((r: any) => {
                       let pathOnly: string;
