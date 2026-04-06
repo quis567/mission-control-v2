@@ -202,11 +202,24 @@ export async function POST(req: NextRequest) {
       localSync = await syncLocalRepo(`quis567/${repo.repo}`);
     } catch { /* non-critical */ }
 
+    // Trigger Netlify deploy if site has a Netlify ID
+    let netlifyDeployed = false;
+    const NETLIFY_TOKEN = process.env.NETLIFY_ACCESS_TOKEN;
+    if (NETLIFY_TOKEN && website.netlifySiteId) {
+      try {
+        const netlifyRes = await fetch(`https://api.netlify.com/api/v1/sites/${website.netlifySiteId}/builds`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${NETLIFY_TOKEN}` },
+        });
+        netlifyDeployed = netlifyRes.ok;
+      } catch { /* non-critical */ }
+    }
+
     return NextResponse.json({
       success: true,
       commitUrl: data.commit?.html_url || `https://github.com/${repo.owner}/${repo.repo}`,
       localSync,
-      message: `Changes applied to ${filePath} and committed to GitHub.${localSync ? ' Local files synced.' : ''} Netlify will auto-deploy in ~30-60 seconds.`,
+      message: `Changes applied to ${filePath} and committed to GitHub.${localSync ? ' Local files synced.' : ''}${netlifyDeployed ? ' Netlify deploy triggered — live in ~60s.' : ''}`,
     });
   } catch (error) {
     return NextResponse.json({ error: `Apply changes error: ${String(error)}` }, { status: 500 });
