@@ -139,6 +139,8 @@ export default function SeoDashboardPage() {
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; page: string } | null>(null);
   const [bulkResult, setBulkResult] = useState<any>(null);
   const [keywordSaving, setKeywordSaving] = useState<string | null>(null);
+  const [fixPrompt, setFixPrompt] = useState<string | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   const fetchData = useCallback(async () => {
     const [wRes, sRes] = await Promise.all([
@@ -269,6 +271,80 @@ export default function SeoDashboardPage() {
       if (data.success) { setAiResult(null); fetchData(); }
     } catch (e) { setApplyResult({ error: String(e) }); }
     setApplyLoading(false);
+  };
+
+  const generateFixPrompt = () => {
+    if (!pages.length || !website) return;
+    const bizName = website.client?.businessName || 'this business';
+    const bizType = website.client?.businessType || '';
+    const siteUrl = website.url || '';
+
+    // Group issues by type
+    const titleIssues: string[] = [];
+    const descIssues: string[] = [];
+    const contentIssues: string[] = [];
+    const headingIssues: string[] = [];
+    const linkIssues: string[] = [];
+    const canonicalIssues: string[] = [];
+    const otherIssues: string[] = [];
+
+    for (const pg of pages) {
+      let pathOnly: string;
+      try { pathOnly = new URL(pg.pageUrl).pathname; } catch { pathOnly = pg.pageUrl; }
+      let pgIssues: any[] = [];
+      try { pgIssues = JSON.parse(pg.issues || '[]'); } catch { /* skip */ }
+
+      for (const issue of pgIssues) {
+        const txt = issue.issue || '';
+        const line = `- \`${pathOnly}\` — ${txt}`;
+        if (txt.includes('Title is too long') || txt.includes('Title is too short') || txt.includes('No title')) {
+          titleIssues.push(line);
+        } else if (txt.includes('meta description') || txt.includes('Meta description') || txt.includes('No meta description')) {
+          descIssues.push(line);
+        } else if (txt.includes('word count') || txt.includes('Word count')) {
+          contentIssues.push(`- \`${pathOnly}\` — currently ${pg.wordCount || 0} words, needs 300+`);
+        } else if (txt.includes('heading') || txt.includes('Heading') || txt.includes('H1') || txt.includes('h1')) {
+          headingIssues.push(line);
+        } else if (txt.includes('external link') || txt.includes('External link')) {
+          linkIssues.push(`\`${pathOnly}\``);
+        } else if (txt.includes('canonical')) {
+          canonicalIssues.push(`\`${pathOnly}\``);
+        } else {
+          otherIssues.push(line);
+        }
+      }
+    }
+
+    let prompt = `I need you to fix all SEO issues on this site (${bizName}${bizType ? ' — ' + bizType : ''}). The site is at ${siteUrl}. Here's exactly what needs to be done:\n\n`;
+
+    if (titleIssues.length) {
+      prompt += `## Fix Title Tags\n${titleIssues.join('\n')}\nTitle tags should be 50-60 characters.\n\n`;
+    }
+    if (descIssues.length) {
+      prompt += `## Fix Meta Descriptions\n${descIssues.join('\n')}\nMeta descriptions should be 120-160 characters.\n\n`;
+    }
+    if (contentIssues.length) {
+      prompt += `## Add Content to Thin Pages\nThese pages have low word count and need more content (target 300+ words). Keep existing content and expand naturally:\n${contentIssues.join('\n')}\n\n`;
+    }
+    if (headingIssues.length) {
+      prompt += `## Fix Heading Structure\n${headingIssues.join('\n')}\nHeadings should follow H1 → H2 → H3 hierarchy without skipping levels.\n\n`;
+    }
+    if (linkIssues.length) {
+      const uniquePages = [...new Set(linkIssues)];
+      prompt += `## Add External Authority Links\nThese pages need at least one outbound link to a relevant authority site:\n${uniquePages.map(p => `- ${p}`).join('\n')}\nChoose relevant industry authority sites. Add links naturally within the content.\n\n`;
+    }
+    if (canonicalIssues.length) {
+      const uniquePages = [...new Set(canonicalIssues)];
+      prompt += `## Add Canonical URLs\nThese pages are missing canonical link tags:\n${uniquePages.map(p => `- ${p}`).join('\n')}\nFor Next.js sites, add \`metadataBase\` and \`alternates: { canonical: "./" }\` to the layout metadata. For static HTML, add \`<link rel="canonical" href="...">\` to each page's \`<head>\`.\n\n`;
+    }
+    if (otherIssues.length) {
+      prompt += `## Other Issues\n${otherIssues.join('\n')}\n\n`;
+    }
+
+    prompt += `Do NOT change the visual design, layout structure, or component architecture. Only modify content and metadata.`;
+
+    setFixPrompt(prompt);
+    setPromptCopied(false);
   };
 
   const handleBulkOptimize = async () => {
@@ -729,6 +805,48 @@ export default function SeoDashboardPage() {
                   <p className="text-xs text-red-400">{bulkResult.error}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Generate Fix Prompt (overview only) */}
+          {isOverview && issues.length > 0 && (
+            <div className="glass p-5 mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-medium text-white/60">Need to fix remaining issues manually?</h2>
+                <p className="text-xs text-white/30 mt-0.5">Generate a prompt from the to-do list to paste into Claude Code</p>
+              </div>
+              <button onClick={generateFixPrompt}
+                className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm hover:bg-white/10 transition-all duration-200 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+                Generate Fix Prompt
+              </button>
+            </div>
+          )}
+
+          {/* Fix Prompt Modal */}
+          {fixPrompt && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setFixPrompt(null)} />
+              <div className="glass-elevated p-8 w-full max-w-3xl relative z-10 max-h-[85vh] flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-light tracking-wide text-white">Claude Code Fix Prompt</h2>
+                  <div className="flex gap-2">
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(fixPrompt);
+                      setPromptCopied(true);
+                      setTimeout(() => setPromptCopied(false), 2000);
+                    }}
+                      className="px-4 py-1.5 rounded-lg bg-accent/20 text-accent text-sm hover:bg-accent/30 transition-all">
+                      {promptCopied ? 'Copied!' : 'Copy to Clipboard'}
+                    </button>
+                    <button onClick={() => setFixPrompt(null)} className="px-3 py-1.5 rounded-lg border border-white/15 text-white/40 text-sm hover:bg-white/5">Close</button>
+                  </div>
+                </div>
+                <p className="text-xs text-white/30 mb-3">Paste this prompt into Claude Code from the client&apos;s project directory to fix all SEO issues.</p>
+                <div className="flex-1 overflow-y-auto p-4 rounded-lg bg-black/30 border border-white/5">
+                  <pre className="text-xs text-white/60 whitespace-pre-wrap font-mono">{fixPrompt}</pre>
+                </div>
+              </div>
             </div>
           )}
 
