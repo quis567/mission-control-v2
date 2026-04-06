@@ -749,16 +749,25 @@ export default function SeoDashboardPage() {
             <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">AI SEO Tools</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button onClick={handleGenerateMeta} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
-                <p className="text-sm text-accent mb-1">{aiLoading === 'meta' ? 'Generating...' : 'Generate Meta Tags'}</p>
+                <p className="text-sm text-accent mb-1 flex items-center gap-2">
+                  {aiLoading === 'meta' && <svg className="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                  {aiLoading === 'meta' ? 'Generating...' : 'Generate Meta Tags'}
+                </p>
                 <p className="text-xs text-white/30">AI-optimized title & description</p>
               </button>
               <button onClick={handleSuggestKeywords} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
-                <p className="text-sm text-accent mb-1">{aiLoading === 'keywords' ? 'Analyzing...' : 'Suggest Keywords'}</p>
+                <p className="text-sm text-accent mb-1 flex items-center gap-2">
+                  {aiLoading === 'keywords' && <svg className="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                  {aiLoading === 'keywords' ? 'Analyzing...' : 'Suggest Keywords'}
+                </p>
                 <p className="text-xs text-white/30">Find target keywords</p>
               </button>
               <button onClick={handleRewriteContent} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
-                <p className="text-sm text-accent mb-1">{aiLoading === 'rewrite' ? 'Rewriting...' : 'Rewrite Content'}</p>
-                <p className="text-xs text-white/30">SEO-optimized copy</p>
+                <p className="text-sm text-accent mb-1 flex items-center gap-2">
+                  {aiLoading === 'rewrite' && <svg className="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                  {aiLoading === 'rewrite' ? 'Rewriting...' : 'Rewrite Content'}
+                </p>
+                <p className="text-xs text-white/30">{aiLoading === 'rewrite' ? 'Generating optimized content — this may take a moment' : 'SEO-optimized copy'}</p>
               </button>
               <button onClick={() => setCompetitorModal(true)} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors">
                 <p className="text-sm text-accent mb-1">Keyword Analysis</p>
