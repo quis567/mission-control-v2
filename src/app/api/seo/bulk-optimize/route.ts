@@ -47,7 +47,7 @@ Business: ${website.client?.businessName || 'Unknown'}
 Website: ${website.url}
 
 Pages:
-${pageSummaries.map((p, i) => `${i + 1}. URL: ${p.url}
+${pageSummaries.map((p, i) => `Page ${i + 1}: ${p.url}
    Title: ${p.title}
    Description: ${p.description}
    H1: ${p.h1}
@@ -62,10 +62,10 @@ For EACH page, generate:
 Make sure keywords are unique across pages to avoid cannibalization.
 Consider local SEO and the business type.
 
-Respond in this exact JSON format:
-{"pages": [{"id": "${pageSummaries[0]?.id || 'page-id'}", "title": "optimized title", "description": "optimized description", "targetKeyword": "primary keyword"}]}
+Respond in this exact JSON format (use the page numbers 1, 2, 3... as shown above):
+{"pages": [{"pageNumber": 1, "title": "optimized title", "description": "optimized description", "targetKeyword": "primary keyword"}]}
 
-Include an entry for EVERY page. Use the exact page IDs provided.`;
+You MUST include an entry for EVERY page, numbered sequentially starting from 1.`;
 
     const result = await callClaude(
       'You are an SEO expert specializing in local service businesses. Respond with valid JSON only, no markdown.',
@@ -79,7 +79,9 @@ Include an entry for EVERY page. Use the exact page IDs provided.`;
     const results: { pageId: string; url: string; changes: string[] }[] = [];
 
     for (const opt of parsed.pages) {
-      const existing = pages.find(p => p.id === opt.id);
+      // Match by pageNumber (1-indexed) back to our pages array
+      const idx = (opt.pageNumber || 0) - 1;
+      const existing = pages[idx];
       if (!existing) continue;
 
       const updates: any = {};
@@ -107,7 +109,7 @@ Include an entry for EVERY page. Use the exact page IDs provided.`;
       }
 
       if (Object.keys(updates).length === 0) {
-        results.push({ pageId: opt.id, url: existing.pageUrl, changes: ['No changes needed'] });
+        results.push({ pageId: existing.id, url: existing.pageUrl, changes: ['No changes needed'] });
         continue;
       }
 
@@ -116,16 +118,16 @@ Include an entry for EVERY page. Use the exact page IDs provided.`;
       updates.seoScore = calculateSeoScore(merged);
       updates.lastAudited = new Date();
 
-      await prisma.seoPage.update({ where: { id: opt.id }, data: updates });
+      await prisma.seoPage.update({ where: { id: existing.id }, data: updates });
 
       // Log changes
       for (const change of changes) {
         await prisma.seoChange.create({
-          data: { seoPageId: opt.id, ...change, changedBy: 'ai-bulk' },
+          data: { seoPageId: existing.id, ...change, changedBy: 'ai-bulk' },
         });
       }
 
-      results.push({ pageId: opt.id, url: existing.pageUrl, changes: changeLabels });
+      results.push({ pageId: existing.id, url: existing.pageUrl, changes: changeLabels });
     }
 
     return NextResponse.json({
