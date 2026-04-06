@@ -131,29 +131,39 @@ function enhanceBodyContent(html: string, keyword: string, businessType: string)
   let addedStrong = false;
   let addedExtLink = false;
 
-  // Add <strong> tags around the target keyword (first occurrence in body text only)
-  if (keyword && !/<strong>/i.test(result)) {
-    // Find keyword in paragraph text and wrap first occurrence
-    const kwRegex = new RegExp(`(<p[^>]*>[^<]*)(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})([^<]*<\/p>)`, 'i');
-    if (kwRegex.test(result)) {
-      result = result.replace(kwRegex, `$1<strong>$2</strong>$3`);
-      addedStrong = true;
-    } else {
-      // Try bolding the keyword anywhere in body content (not in tags)
-      const bodyMatch = result.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-      if (bodyMatch) {
-        const kwSimple = new RegExp(`(>[^<]*)(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})([^<]*<)`, 'i');
-        if (kwSimple.test(result)) {
-          result = result.replace(kwSimple, `$1<strong>$2</strong>$3`);
+  // Add <strong> tags around the target keyword — ONLY inside <body>, never in <head>/<title>
+  if (keyword) {
+    const bodyStart = result.search(/<body[^>]*>/i);
+    if (bodyStart !== -1) {
+      const head = result.slice(0, bodyStart);
+      let body = result.slice(bodyStart);
+
+      // Only add if no <strong> exists in body already
+      if (!/<strong>/i.test(body)) {
+        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Try matching inside a <p> tag first
+        const pRegex = new RegExp(`(<p[^>]*>[^<]*)(${escaped})([^<]*<\/p>)`, 'i');
+        if (pRegex.test(body)) {
+          body = body.replace(pRegex, `$1<strong>$2</strong>$3`);
           addedStrong = true;
+        } else {
+          // Try matching inside any body text (between > and <), but skip tags/attributes
+          const textRegex = new RegExp(`(<(?:p|span|li|h[2-6]|div|td|dd)[^>]*>[^<]*)(${escaped})([^<]*<)`, 'i');
+          if (textRegex.test(body)) {
+            body = body.replace(textRegex, `$1<strong>$2</strong>$3`);
+            addedStrong = true;
+          }
         }
       }
+
+      result = head + body;
     }
   }
 
-  // Add external authority link if none exist
-  const extLinkRegex = /<a\s+[^>]*href=["']https?:\/\/(?!heartfelt-medovik|localhost|127\.0\.0\.1)[^"']+["'][^>]*>/i;
-  if (!extLinkRegex.test(result)) {
+  // Add external authority link if none exist in body
+  const bodyContent = result.slice(result.search(/<body[^>]*>/i) || 0);
+  const extLinkRegex = /<a\s+[^>]*href=["']https?:\/\/(?!localhost|127\.0\.0\.1)[^"']+["'][^>]*>/i;
+  if (!extLinkRegex.test(bodyContent)) {
     // Pick an authority link based on business type
     const authorityLinks: Record<string, { url: string; text: string }> = {
       'hvac': { url: 'https://www.energy.gov/energysaver/heating-and-cooling', text: 'U.S. Department of Energy heating and cooling guidelines' },
