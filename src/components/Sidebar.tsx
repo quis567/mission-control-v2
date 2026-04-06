@@ -22,8 +22,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  // Don't render sidebar on login or public request pages
-  if (pathname === '/login' || pathname.startsWith('/request')) return null;
+  // Don't render sidebar on login or public request pages (but keep it on /requests admin page)
+  if (pathname === '/login' || (pathname.startsWith('/request/') && !pathname.startsWith('/requests'))) return null;
 
   const userName = session?.user?.name || session?.user?.email?.split('@')[0] || '';
   const userInitial = userName.charAt(0).toUpperCase();
