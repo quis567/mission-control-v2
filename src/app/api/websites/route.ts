@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
         gscConnected: body.gscConnected || false,
         maintenancePlan: body.maintenancePlan || false,
         notes: body.notes || null,
+        netlifySiteId: body.netlifySiteId || null,
+        githubRepoUrl: body.githubRepoUrl || null,
       },
     });
 

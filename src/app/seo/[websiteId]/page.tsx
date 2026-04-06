@@ -135,6 +135,10 @@ export default function SeoDashboardPage() {
   const [competitorUrl, setCompetitorUrl] = useState('');
   const [competitorLoading, setCompetitorLoading] = useState(false);
   const [competitorResult, setCompetitorResult] = useState<any>(null);
+  const [bulkOptimizing, setBulkOptimizing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; page: string } | null>(null);
+  const [bulkResult, setBulkResult] = useState<any>(null);
+  const [keywordSaving, setKeywordSaving] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const [wRes, sRes] = await Promise.all([
@@ -265,6 +269,20 @@ export default function SeoDashboardPage() {
       if (data.success) { setAiResult(null); fetchData(); }
     } catch (e) { setApplyResult({ error: String(e) }); }
     setApplyLoading(false);
+  };
+
+  const handleBulkOptimize = async () => {
+    setBulkOptimizing(true); setBulkResult(null);
+    try {
+      const res = await fetch('/api/seo/bulk-optimize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteId }),
+      });
+      const data = await res.json();
+      setBulkResult(res.ok ? data : { error: data.error || 'Bulk optimization failed' });
+      if (res.ok) fetchData();
+    } catch (e) { setBulkResult({ error: String(e) }); }
+    finally { setBulkOptimizing(false); }
   };
 
   if (loading) return <PageLoader />;
@@ -494,6 +512,54 @@ export default function SeoDashboardPage() {
             </div>
           </div>
 
+          {/* Current Keywords Overview */}
+          {isOverview && pages.some(pg => pg.targetKeyword) && (
+            <div className="glass p-5 mb-6">
+              <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">Current Target Keywords</h2>
+              <div className="space-y-1.5">
+                {pages.map(pg => {
+                  let pathOnly: string;
+                  try { pathOnly = new URL(pg.pageUrl).pathname; } catch { pathOnly = pg.pageUrl; }
+                  return (
+                    <div key={pg.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/[0.02]">
+                      <span className="text-xs text-white/40 truncate max-w-[200px]">{pathOnly || '/'}</span>
+                      {pg.targetKeyword ? (
+                        <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded">{pg.targetKeyword}</span>
+                      ) : (
+                        <span className="text-xs text-white/20 italic">No keyword set</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Per-page current keyword */}
+          {!isOverview && p && (
+            <div className="glass p-4 mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white/40 uppercase tracking-wider">Target Keyword</span>
+                {p.targetKeyword ? (
+                  <span className="text-sm bg-accent/10 text-accent px-3 py-1 rounded-lg border border-accent/20">{p.targetKeyword}</span>
+                ) : (
+                  <span className="text-sm text-white/25 italic">None set — use Suggest Keywords below</span>
+                )}
+              </div>
+              {p.targetKeyword && (
+                <div className="flex items-center gap-3 text-xs text-white/30">
+                  {p.keywordDensity != null && <span>Density: {p.keywordDensity.toFixed(1)}%</span>}
+                  <button onClick={() => {
+                    fetch(`/api/websites/${websiteId}/seo`, {
+                      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ seoPageId: p.id, targetKeyword: '' }),
+                    }).then(() => fetchData());
+                  }} className="text-red-400/50 hover:text-red-400 transition-colors">Clear</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* D. TO-DO List */}
           {issues.length > 0 && (() => {
             // In overview, sort by importance and limit to 25
@@ -577,6 +643,79 @@ export default function SeoDashboardPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Bulk AI Optimization (overview only) */}
+          {isOverview && (
+            <div className="glass p-6 mb-6 border border-accent/10">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider">AI Site-Wide Optimization</h2>
+                  <p className="text-xs text-white/30 mt-1">Generate optimized titles, descriptions, and keywords for all {pages.length} pages at once</p>
+                </div>
+                <button onClick={handleBulkOptimize} disabled={bulkOptimizing}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent/30 to-blue-400/20 border border-accent/30 text-accent text-sm font-medium hover:from-accent/40 hover:to-blue-400/30 transition-all duration-200 disabled:opacity-40 shadow-lg shadow-accent/10 flex items-center gap-2">
+                  {bulkOptimizing ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      Optimizing All Pages...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" /></svg>
+                      Optimize All Pages with AI
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {bulkOptimizing && (
+                <div className="mt-4">
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-accent/40 rounded-full animate-pulse" style={{ width: '60%' }} />
+                  </div>
+                  <p className="text-xs text-white/30 mt-2">AI is analyzing all pages and generating optimized meta tags and keywords...</p>
+                </div>
+              )}
+
+              {bulkResult && !bulkResult.error && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-emerald-400">✓ {bulkResult.message}</span>
+                    <button onClick={() => setBulkResult(null)} className="text-xs text-white/30 hover:text-white/60 ml-auto">Dismiss</button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {bulkResult.results?.map((r: any) => {
+                      let pathOnly: string;
+                      try { pathOnly = new URL(r.url).pathname; } catch { pathOnly = r.url; }
+                      const noChanges = r.changes[0] === 'No changes needed';
+                      return (
+                        <div key={r.pageId} className="flex items-center justify-between py-1.5 px-3 rounded bg-white/[0.02]">
+                          <span className="text-xs text-white/40 truncate max-w-[200px]">{pathOnly || '/'}</span>
+                          {noChanges ? (
+                            <span className="text-xs text-white/20">No changes needed</span>
+                          ) : (
+                            <div className="flex gap-1.5">
+                              {r.changes.map((c: string) => (
+                                <span key={c} className="text-[10px] bg-emerald-400/10 text-emerald-400 px-1.5 py-0.5 rounded">
+                                  {c} updated
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {bulkResult?.error && (
+                <div className="mt-4 p-3 rounded bg-red-400/5 border border-red-400/20">
+                  <p className="text-xs text-red-400">{bulkResult.error}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -671,12 +810,19 @@ export default function SeoDashboardPage() {
                       <span className={`text-xs ml-2 ${kw.relevance === 'high' ? 'text-emerald-400' : kw.relevance === 'medium' ? 'text-amber-400' : 'text-white/30'}`}>{kw.relevance}</span>
                       {kw.reasoning && <p className="text-xs text-white/30 mt-0.5">{kw.reasoning}</p>}
                     </div>
-                    <button onClick={() => {
-                      fetch(`/api/websites/${websiteId}/seo`, {
+                    <button onClick={async () => {
+                      setKeywordSaving(kw.keyword);
+                      await fetch(`/api/websites/${websiteId}/seo`, {
                         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ seoPageId: p.id, targetKeyword: kw.keyword }),
-                      }).then(() => fetchData());
-                    }} className="text-xs text-accent hover:text-accent/80">Use</button>
+                      });
+                      await fetchData();
+                      setKeywordSaving(null);
+                      setAiResult(null);
+                    }} disabled={!!keywordSaving}
+                      className="text-xs px-2 py-1 rounded bg-accent/15 text-accent hover:bg-accent/25 disabled:opacity-40 transition-all">
+                      {keywordSaving === kw.keyword ? 'Saving...' : 'Use'}
+                    </button>
                   </div>
                 ))}
               </div>
