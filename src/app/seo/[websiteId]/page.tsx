@@ -249,7 +249,7 @@ export default function SeoDashboardPage() {
     try {
       const res = await fetch('/api/seo/rewrite', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageUrl: selectedPage.pageUrl, currentContent: `Title: ${selectedPage.pageTitle}. H1: ${selectedPage.h1Tag}. Description: ${selectedPage.metaDescription}.`, targetKeyword: selectedPage.targetKeyword || '' }),
+        body: JSON.stringify({ pageUrl: selectedPage.pageUrl, currentContent: `Title: ${selectedPage.pageTitle}\nMeta Description: ${selectedPage.metaDescription}\nH1: ${selectedPage.h1Tag}\nWord Count: ${selectedPage.wordCount}\nPage URL: ${selectedPage.pageUrl}`, targetKeyword: selectedPage.targetKeyword || '' }),
       });
       setAiResult({ type: 'rewrite', data: await res.json() });
     } catch { setAiResult({ type: 'error', data: 'Failed' }); }
@@ -831,14 +831,96 @@ export default function SeoDashboardPage() {
 
           {aiResult && aiResult.type === 'rewrite' && aiResult.data && (
             <div className="glass p-6 mb-6 border border-accent/20">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm text-accent">AI Content Rewrite</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm text-accent">AI Content Rewrite — Review Changes</h3>
                 <button onClick={() => setAiResult(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
               </div>
-              {aiResult.data.rewrittenContent && <div className="text-xs text-white/60 whitespace-pre-wrap max-h-64 overflow-y-auto mb-3">{aiResult.data.rewrittenContent}</div>}
+
+              {/* Changes summary */}
               {aiResult.data.changes?.length > 0 && (
-                <div className="space-y-1 mb-3">{aiResult.data.changes.map((c: string, i: number) => <p key={i} className="text-xs text-accent/70">• {c}</p>)}</div>
+                <div className="mb-4 p-3 rounded-lg bg-accent/5 border border-accent/10">
+                  <p className="text-xs text-accent/80 font-medium mb-1.5">What will change:</p>
+                  {aiResult.data.changes.map((c: string, i: number) => <p key={i} className="text-xs text-white/50">• {c}</p>)}
+                  {aiResult.data.wordCount && <p className="text-xs text-white/30 mt-1.5">New word count: {aiResult.data.wordCount} · Keywords used: {aiResult.data.keywordCount || 'N/A'}</p>}
+                </div>
               )}
+
+              {/* Title before/after */}
+              {aiResult.data.title && (
+                <div className="mb-3">
+                  <p className="text-xs text-white/40 mb-1">Title Tag</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 rounded bg-red-400/5 border border-red-400/10">
+                      <p className="text-[10px] text-red-400/60 mb-0.5">Current</p>
+                      <p className="text-xs text-white/50">{p?.pageTitle || 'No title'}</p>
+                    </div>
+                    <div className="p-2 rounded bg-emerald-400/5 border border-emerald-400/10">
+                      <p className="text-[10px] text-emerald-400/60 mb-0.5">Proposed ({aiResult.data.title.length} chars)</p>
+                      <p className="text-xs text-white/70">{aiResult.data.title}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Meta description before/after */}
+              {aiResult.data.metaDescription && (
+                <div className="mb-3">
+                  <p className="text-xs text-white/40 mb-1">Meta Description</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 rounded bg-red-400/5 border border-red-400/10">
+                      <p className="text-[10px] text-red-400/60 mb-0.5">Current</p>
+                      <p className="text-xs text-white/50">{p?.metaDescription || 'No description'}</p>
+                    </div>
+                    <div className="p-2 rounded bg-emerald-400/5 border border-emerald-400/10">
+                      <p className="text-[10px] text-emerald-400/60 mb-0.5">Proposed ({aiResult.data.metaDescription.length} chars)</p>
+                      <p className="text-xs text-white/70">{aiResult.data.metaDescription}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Body content preview */}
+              {aiResult.data.rewrittenContent && (
+                <div className="mb-4">
+                  <p className="text-xs text-white/40 mb-1">Rewritten Page Content</p>
+                  <div className="p-3 rounded bg-white/[0.02] border border-white/5 max-h-48 overflow-y-auto">
+                    <div className="text-xs text-white/60 whitespace-pre-wrap">{aiResult.data.rewrittenContent}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-3 border-t border-white/5">
+                <button onClick={() => {
+                  const changes: Record<string, string> = {};
+                  if (aiResult.data.title) changes.title = aiResult.data.title;
+                  if (aiResult.data.metaDescription) changes.metaDescription = aiResult.data.metaDescription;
+                  handleApplyChanges(changes);
+                }} disabled={applyLoading || (!aiResult.data.title && !aiResult.data.metaDescription)}
+                  className="px-4 py-1.5 rounded-lg bg-accent/20 text-accent text-xs hover:bg-accent/30 disabled:opacity-30 flex items-center gap-1.5">
+                  {applyLoading ? (
+                    <><svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Pushing to GitHub...</>
+                  ) : 'Apply to Live Site'}
+                </button>
+                <button onClick={() => {
+                  const dbFields: any = { seoPageId: p!.id, changedBy: 'ai' };
+                  if (aiResult.data.title) dbFields.pageTitle = aiResult.data.title;
+                  if (aiResult.data.metaDescription) dbFields.metaDescription = aiResult.data.metaDescription;
+                  fetch(`/api/websites/${websiteId}/seo`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dbFields),
+                  }).then(() => { setAiResult(null); fetchData(); });
+                }} className="px-4 py-1.5 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/15">
+                  Save to DB Only
+                </button>
+                {aiResult.data.rewrittenContent && (
+                  <button onClick={() => { navigator.clipboard.writeText(aiResult.data.rewrittenContent); }}
+                    className="px-4 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs hover:bg-white/10 ml-auto">
+                    Copy Content
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-white/20 mt-2">&quot;Apply to Live Site&quot; pushes title &amp; description to GitHub → auto-deploys via Netlify in ~60s. Use &quot;Copy Content&quot; to manually update page body text.</p>
             </div>
           )}
 
