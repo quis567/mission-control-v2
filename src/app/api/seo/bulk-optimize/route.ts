@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callClaude } from '@/lib/anthropic';
 import prisma from '@/lib/db';
-import { calculateSeoScore } from '@/lib/seo';
+
 
 const GITHUB_TOKEN = process.env.GITHUB_ACCESS_TOKEN;
 const NETLIFY_TOKEN = process.env.NETLIFY_ACCESS_TOKEN;
@@ -298,10 +298,8 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
         changeLabels.push('keyword');
       }
 
-      // Recalculate score
+      // Save updates without recalculating score — the crawl has the full picture
       if (Object.keys(updates).length > 0) {
-        const merged = { ...existing, ...updates };
-        updates.seoScore = calculateSeoScore(merged);
         updates.lastAudited = new Date();
         await prisma.seoPage.update({ where: { id: existing.id }, data: updates });
         for (const change of changes) {
