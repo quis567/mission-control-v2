@@ -221,6 +221,57 @@ export async function POST(request: NextRequest) {
     const repo = website.githubRepoUrl ? parseGitHubUrl(website.githubRepoUrl) : null;
     const canPushToGitHub = !!GITHUB_TOKEN && !!repo;
 
+    // Detect if this is a Next.js site by checking for layout.tsx
+    let isNextJs = false;
+    let nextLayoutUpdated = false;
+    if (canPushToGitHub && repo) {
+      const layoutFile = await githubGet(`/repos/${repo.owner}/${repo.repo}/contents/src/app/layout.tsx`);
+      if (layoutFile && layoutFile.sha) {
+        isNextJs = true;
+        // Update layout.tsx metadata to add metadataBase, canonical, and twitter config
+        const layoutContent = Buffer.from(layoutFile.content, 'base64').toString('utf8');
+        let updatedLayout = layoutContent;
+
+        // Add metadataBase if missing (required for canonical URLs in Next.js)
+        if (!updatedLayout.includes('metadataBase')) {
+          updatedLayout = updatedLayout.replace(
+            /export const metadata:\s*Metadata\s*=\s*\{/,
+            `export const metadata: Metadata = {\n  metadataBase: new URL("${website.url}"),`
+          );
+        }
+
+        // Add alternates.canonical if missing
+        if (!updatedLayout.includes('alternates')) {
+          updatedLayout = updatedLayout.replace(
+            /export const metadata:\s*Metadata\s*=\s*\{[^]*?metadataBase[^,]*,/,
+            `$&\n  alternates: { canonical: "./" },`
+          );
+        }
+
+        // Add twitter config if missing
+        if (!updatedLayout.includes('twitter')) {
+          const bizName = website.client?.businessName || 'Website';
+          const bizDesc = pages[0]?.metaDescription || 'Professional services you can trust.';
+          if (updatedLayout.includes('openGraph')) {
+            updatedLayout = updatedLayout.replace(
+              /(openGraph:\s*\{[^}]*\}[^}]*\},?)/,
+              `$1\n  twitter: {\n    card: "summary",\n    title: "${bizName.replace(/"/g, '\\"')}",\n    description: "${bizDesc.replace(/"/g, '\\"').substring(0, 200)}",\n  },`
+            );
+          }
+        }
+
+        if (updatedLayout !== layoutContent) {
+          const updatedContent = Buffer.from(updatedLayout, 'utf8').toString('base64');
+          const { ok } = await githubPut(`/repos/${repo.owner}/${repo.repo}/contents/src/app/layout.tsx`, {
+            message: `SEO: Add metadataBase, canonical, and twitter config to layout — via Mission Control`,
+            content: updatedContent,
+            sha: layoutFile.sha,
+          });
+          nextLayoutUpdated = ok;
+        }
+      }
+    }
+
     const pageSummaries = pages.map(p => ({
       id: p.id,
       url: p.pageUrl,
@@ -309,9 +360,9 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
         }
       }
 
-      // Push to GitHub: meta tags + body enhancements
+      // Push to GitHub: meta tags + body enhancements (static HTML sites only)
       let pushed = false;
-      if (canPushToGitHub && repo) {
+      if (canPushToGitHub && repo && !isNextJs) {
         try {
           let pathOnly = existing.pageUrl;
           try { pathOnly = new URL(existing.pageUrl).pathname; } catch { /* already a path */ }
@@ -354,6 +405,8 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
           }
         } catch { /* non-critical */ }
       }
+      // For Next.js sites, layout update covers all pages
+      if (isNextJs && nextLayoutUpdated) pushed = true;
 
       const hasAnyChanges = changeLabels.length > 0;
       results.push({
