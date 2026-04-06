@@ -696,12 +696,17 @@ export default function SeoDashboardPage() {
                           {noChanges ? (
                             <span className="text-xs text-white/20">No changes needed</span>
                           ) : (
-                            <div className="flex gap-1.5">
+                            <div className="flex gap-1.5 items-center">
                               {r.changes.map((c: string) => (
                                 <span key={c} className="text-[10px] bg-emerald-400/10 text-emerald-400 px-1.5 py-0.5 rounded">
                                   {c} updated
                                 </span>
                               ))}
+                              {r.pushed ? (
+                                <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded">pushed to GitHub</span>
+                              ) : (
+                                <span className="text-[10px] bg-white/5 text-white/25 px-1.5 py-0.5 rounded">DB only</span>
+                              )}
                             </div>
                           )}
                         </div>
