@@ -137,6 +137,7 @@ model Client {
   businessType   String?   @map("business_type")
   city           String?
   state          String?
+  slug           String?   @unique
   status           String    @default("lead")
   statusChangedAt  DateTime  @default(now()) @map("status_changed_at")
   monthlyRevenue   Float?    @map("monthly_revenue")
@@ -146,14 +147,15 @@ model Client {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  package   Package?     @relation(fields: [packageId], references: [id])
-  notes     ClientNote[]
-  websites  Website[]
-  services  Service[]
-  links     ClientLink[]
-  tasks     Task[]
-  proposals Proposal[]
-  reports   Report[]
+  package         Package?         @relation(fields: [packageId], references: [id])
+  notes           ClientNote[]
+  websites        Website[]
+  services        Service[]
+  links           ClientLink[]
+  tasks           Task[]
+  proposals       Proposal[]
+  reports         Report[]
+  changeRequests  ChangeRequest[]
 
   @@map("clients")
 }
@@ -368,4 +370,29 @@ model CrawlHistory {
   website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
 
   @@map("crawl_history")
+}
+
+// ==========================================
+// Change Request System
+// ==========================================
+
+model ChangeRequest {
+  id              String    @id @default(uuid())
+  clientId        String    @map("client_id")
+  changeType      String    @map("change_type")
+  pageLocation    String    @map("page_location")
+  details         String
+  priority        String    @default("normal")
+  status          String    @default("new")
+  files           String?   // JSON array of file URLs
+  generatedPrompt String?   @map("generated_prompt")
+  internalNotes   String?   @map("internal_notes")
+  submittedAt     DateTime  @default(now()) @map("submitted_at")
+  completedAt     DateTime? @map("completed_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([status])
+  @@map("change_requests")
 }

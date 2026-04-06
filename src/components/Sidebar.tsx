@@ -7,6 +7,7 @@ import { useSession, signOut } from 'next-auth/react';
 const navItems = [
   { href: '/', icon: DashboardIcon, label: 'Dashboard' },
   { href: '/tasks', icon: TasksIcon, label: 'Tasks' },
+  { href: '/requests', icon: RequestsIcon, label: 'Requests' },
   { href: '/clients', icon: ClientsIcon, label: 'Clients' },
   { href: '/pipeline', icon: PipelineIcon, label: 'Pipeline' },
   { href: '/prospector', icon: ProspectorIcon, label: 'Prospector' },
@@ -21,8 +22,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  // Don't render sidebar on login page
-  if (pathname === '/login') return null;
+  // Don't render sidebar on login or public request pages
+  if (pathname === '/login' || pathname.startsWith('/request')) return null;
 
   const userName = session?.user?.name || session?.user?.email?.split('@')[0] || '';
   const userInitial = userName.charAt(0).toUpperCase();
@@ -187,6 +188,14 @@ function ClientsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21" />
+    </svg>
+  );
+}
+
+function RequestsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
     </svg>
   );
 }

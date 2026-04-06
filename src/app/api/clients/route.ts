@@ -97,9 +97,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+function generateSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Auto-generate slug from business name
+    let slug = generateSlug(body.businessName);
+    const existing = await prisma.client.findUnique({ where: { slug } });
+    if (existing) slug = `${slug}-${Date.now().toString(36)}`;
 
     const client = await prisma.client.create({
       data: {
@@ -110,6 +119,7 @@ export async function POST(request: NextRequest) {
         businessType: body.businessType || null,
         city: body.city || null,
         state: body.state || null,
+        slug,
         status: body.status || 'lead',
         monthlyRevenue: body.monthlyRevenue ? parseFloat(body.monthlyRevenue) : null,
         dateAcquired: body.dateAcquired ? new Date(body.dateAcquired) : null,
