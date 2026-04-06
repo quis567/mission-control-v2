@@ -31,11 +31,9 @@ async function githubPut(path: string, body: any) {
 function applyAllMetaTags(html: string, meta: {
   title?: string; description?: string; canonicalUrl?: string;
   ogTitle?: string; ogDescription?: string; ogUrl?: string;
-  favicon?: string;
 }): string {
   let result = html;
 
-  // Title
   if (meta.title) {
     if (/<title>/i.test(result)) {
       result = result.replace(/<title>[^<]*<\/title>/i, `<title>${meta.title}</title>`);
@@ -44,7 +42,6 @@ function applyAllMetaTags(html: string, meta: {
     }
   }
 
-  // Meta description
   if (meta.description) {
     if (/<meta\s+name=["']description["']/i.test(result)) {
       result = result.replace(/<meta\s+name=["']description["']\s+content=["'][^"']*["'][^>]*>/i,
@@ -54,7 +51,6 @@ function applyAllMetaTags(html: string, meta: {
     }
   }
 
-  // Canonical
   if (meta.canonicalUrl) {
     if (/<link\s+rel=["']canonical["']/i.test(result)) {
       result = result.replace(/<link\s+rel=["']canonical["']\s+href=["'][^"']*["'][^>]*>/i,
@@ -64,7 +60,6 @@ function applyAllMetaTags(html: string, meta: {
     }
   }
 
-  // OG title
   const ogTitle = meta.ogTitle || meta.title;
   if (ogTitle) {
     if (/<meta\s+property=["']og:title["']/i.test(result)) {
@@ -75,7 +70,6 @@ function applyAllMetaTags(html: string, meta: {
     }
   }
 
-  // OG description
   const ogDesc = meta.ogDescription || meta.description;
   if (ogDesc) {
     if (/<meta\s+property=["']og:description["']/i.test(result)) {
@@ -86,20 +80,16 @@ function applyAllMetaTags(html: string, meta: {
     }
   }
 
-  // OG URL
   if (meta.ogUrl || meta.canonicalUrl) {
-    const url = meta.ogUrl || meta.canonicalUrl;
     if (!/<meta\s+property=["']og:url["']/i.test(result)) {
-      result = result.replace(/<\/head>/i, `  <meta property="og:url" content="${url}">\n</head>`);
+      result = result.replace(/<\/head>/i, `  <meta property="og:url" content="${meta.ogUrl || meta.canonicalUrl}">\n</head>`);
     }
   }
 
-  // OG type (if missing)
   if (!/<meta\s+property=["']og:type["']/i.test(result)) {
     result = result.replace(/<\/head>/i, `  <meta property="og:type" content="website">\n</head>`);
   }
 
-  // Twitter card tags (if missing)
   if (!/<meta\s+name=["']twitter:card["']/i.test(result)) {
     result = result.replace(/<\/head>/i, `  <meta name="twitter:card" content="summary">\n</head>`);
   }
@@ -110,12 +100,68 @@ function applyAllMetaTags(html: string, meta: {
     result = result.replace(/<\/head>/i, `  <meta name="twitter:description" content="${ogDesc}">\n</head>`);
   }
 
-  // Favicon (if missing)
   if (!/<link\s+[^>]*rel=["']icon["']/i.test(result) && !/<link\s+[^>]*rel=["']shortcut icon["']/i.test(result)) {
     result = result.replace(/<\/head>/i, `  <link rel="icon" href="/favicon.ico">\n</head>`);
   }
 
   return result;
+}
+
+// Enhance body content: add <strong> tags around key phrases and external authority links
+function enhanceBodyContent(html: string, keyword: string, businessType: string): { html: string; addedStrong: boolean; addedExtLink: boolean } {
+  let result = html;
+  let addedStrong = false;
+  let addedExtLink = false;
+
+  // Add <strong> tags around the target keyword (first occurrence in body text only)
+  if (keyword && !/<strong>/i.test(result)) {
+    // Find keyword in paragraph text and wrap first occurrence
+    const kwRegex = new RegExp(`(<p[^>]*>[^<]*)(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})([^<]*<\/p>)`, 'i');
+    if (kwRegex.test(result)) {
+      result = result.replace(kwRegex, `$1<strong>$2</strong>$3`);
+      addedStrong = true;
+    } else {
+      // Try bolding the keyword anywhere in body content (not in tags)
+      const bodyMatch = result.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      if (bodyMatch) {
+        const kwSimple = new RegExp(`(>[^<]*)(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})([^<]*<)`, 'i');
+        if (kwSimple.test(result)) {
+          result = result.replace(kwSimple, `$1<strong>$2</strong>$3`);
+          addedStrong = true;
+        }
+      }
+    }
+  }
+
+  // Add external authority link if none exist
+  const extLinkRegex = /<a\s+[^>]*href=["']https?:\/\/(?!heartfelt-medovik|localhost|127\.0\.0\.1)[^"']+["'][^>]*>/i;
+  if (!extLinkRegex.test(result)) {
+    // Pick an authority link based on business type
+    const authorityLinks: Record<string, { url: string; text: string }> = {
+      'hvac': { url: 'https://www.energy.gov/energysaver/heating-and-cooling', text: 'U.S. Department of Energy heating and cooling guidelines' },
+      'plumbing': { url: 'https://www.epa.gov/watersense', text: 'EPA WaterSense program' },
+      'electrical': { url: 'https://www.energy.gov/energysaver/electricity-and-fuel', text: 'U.S. Department of Energy' },
+      'roofing': { url: 'https://www.nrca.net/', text: 'National Roofing Contractors Association' },
+      'landscaping': { url: 'https://www.epa.gov/watersense/outdoor-water-use', text: 'EPA outdoor water use guidelines' },
+    };
+
+    const bt = (businessType || '').toLowerCase();
+    const link = Object.entries(authorityLinks).find(([key]) => bt.includes(key))?.[1]
+      || { url: 'https://www.bbb.org/', text: 'Better Business Bureau' };
+
+    // Insert before the last </section> or before </main> or before </body>
+    const insertPoints = [/<\/section>(?![\s\S]*<\/section>)/i, /<\/main>/i, /<\/body>/i];
+    for (const point of insertPoints) {
+      if (point.test(result)) {
+        const linkHtml = `\n  <p style="margin-top: 1.5rem; font-size: 0.9rem; color: #666;">For more information, visit the <a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.text}</a>.</p>\n`;
+        result = result.replace(point, `${linkHtml}$&`);
+        addedExtLink = true;
+        break;
+      }
+    }
+  }
+
+  return { html: result, addedStrong, addedExtLink };
 }
 
 export async function POST(request: NextRequest) {
@@ -144,11 +190,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No pages found — run a crawl first' }, { status: 400 });
     }
 
-    // Check GitHub config
     const repo = website.githubRepoUrl ? parseGitHubUrl(website.githubRepoUrl) : null;
     const canPushToGitHub = !!GITHUB_TOKEN && !!repo;
 
-    // Build a summary of all pages for the AI
     const pageSummaries = pages.map(p => ({
       id: p.id,
       url: p.pageUrl,
@@ -171,6 +215,7 @@ ${pageSummaries.map((p, i) => `Page ${i + 1}: ${p.url}
    Description: ${p.description}
    H1: ${p.h1}
    Current keyword: ${p.currentKeyword || 'none'}
+   Word count: ${p.wordCount}
    Score: ${p.seoScore}/100`).join('\n\n')}
 
 For EACH page, generate:
@@ -194,7 +239,6 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
 
     const parsed = JSON.parse(result.replace(/```json\n?|\n?```/g, '').trim());
 
-    // Apply all optimizations
     const results: { pageId: string; url: string; changes: string[]; pushed: boolean }[] = [];
 
     for (const opt of parsed.pages) {
@@ -226,25 +270,20 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
         changeLabels.push('keyword');
       }
 
-      if (Object.keys(updates).length === 0) {
-        results.push({ pageId: existing.id, url: existing.pageUrl, changes: ['No changes needed'], pushed: false });
-        continue;
-      }
-
       // Recalculate score
-      const merged = { ...existing, ...updates };
-      updates.seoScore = calculateSeoScore(merged);
-      updates.lastAudited = new Date();
-
-      await prisma.seoPage.update({ where: { id: existing.id }, data: updates });
-
-      for (const change of changes) {
-        await prisma.seoChange.create({
-          data: { seoPageId: existing.id, ...change, changedBy: 'ai-bulk' },
-        });
+      if (Object.keys(updates).length > 0) {
+        const merged = { ...existing, ...updates };
+        updates.seoScore = calculateSeoScore(merged);
+        updates.lastAudited = new Date();
+        await prisma.seoPage.update({ where: { id: existing.id }, data: updates });
+        for (const change of changes) {
+          await prisma.seoChange.create({
+            data: { seoPageId: existing.id, ...change, changedBy: 'ai-bulk' },
+          });
+        }
       }
 
-      // Push to GitHub if configured
+      // Push to GitHub: meta tags + body enhancements
       let pushed = false;
       if (canPushToGitHub && repo) {
         try {
@@ -256,17 +295,29 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
           for (const candidate of candidates) {
             const fileData = await githubGet(`/repos/${repo.owner}/${repo.repo}/contents/${candidate}`);
             if (fileData && fileData.sha) {
-              const currentHtml = Buffer.from(fileData.content, 'base64').toString('utf8');
-              const updatedHtml = applyAllMetaTags(currentHtml, {
+              let currentHtml = Buffer.from(fileData.content, 'base64').toString('utf8');
+
+              // Apply meta tag changes
+              currentHtml = applyAllMetaTags(currentHtml, {
                 title: opt.title || existing.pageTitle || undefined,
                 description: opt.description || existing.metaDescription || undefined,
                 canonicalUrl: existing.pageUrl,
               });
 
-              if (updatedHtml !== currentHtml) {
-                const updatedContent = Buffer.from(updatedHtml, 'utf8').toString('base64');
+              // Apply body enhancements: strong tags + external links
+              const targetKw = opt.targetKeyword || existing.targetKeyword || '';
+              const bizType = website.client?.businessType || website.client?.businessName || '';
+              const enhanced = enhanceBodyContent(currentHtml, targetKw, bizType);
+              currentHtml = enhanced.html;
+
+              if (enhanced.addedStrong) changeLabels.push('strong tags');
+              if (enhanced.addedExtLink) changeLabels.push('external link');
+
+              const originalHtml = Buffer.from(fileData.content, 'base64').toString('utf8');
+              if (currentHtml !== originalHtml) {
+                const updatedContent = Buffer.from(currentHtml, 'utf8').toString('base64');
                 const { ok } = await githubPut(`/repos/${repo.owner}/${repo.repo}/contents/${candidate}`, {
-                  message: `SEO: Optimize meta tags for ${pathOnly || '/'} — via Mission Control`,
+                  message: `SEO: Optimize ${pathOnly || '/'} — meta tags, strong tags, external links — via Mission Control`,
                   content: updatedContent,
                   sha: fileData.sha,
                 });
@@ -275,10 +326,16 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
               break;
             }
           }
-        } catch { /* non-critical — DB was still updated */ }
+        } catch { /* non-critical */ }
       }
 
-      results.push({ pageId: existing.id, url: existing.pageUrl, changes: changeLabels, pushed });
+      const hasAnyChanges = changeLabels.length > 0;
+      results.push({
+        pageId: existing.id,
+        url: existing.pageUrl,
+        changes: hasAnyChanges ? changeLabels : ['No changes needed'],
+        pushed,
+      });
     }
 
     const optimizedCount = results.filter(r => r.changes[0] !== 'No changes needed').length;
@@ -286,7 +343,7 @@ You MUST include an entry for EVERY page, numbered sequentially starting from 1.
 
     return NextResponse.json({
       success: true,
-      message: `Optimized ${optimizedCount} of ${pages.length} pages${canPushToGitHub ? ` · ${pushedCount} pushed to GitHub (auto-deploys in ~60s)` : ' · saved to DB only (no GitHub repo linked)'}`,
+      message: `Optimized ${optimizedCount} of ${pages.length} pages${canPushToGitHub ? ` · ${pushedCount} pushed to GitHub` : ' · saved to DB only (no GitHub repo linked)'}`,
       results,
       pushed: pushedCount,
     });
