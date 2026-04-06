@@ -43,9 +43,9 @@ export default function ClientDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="glass p-6 mb-6">
+      <div className="glass p-6 mb-6 overflow-hidden">
         <div className="flex items-start justify-between">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl font-light tracking-wide text-white/90">{client.businessName}</h1>
             <div className="flex items-center gap-3 mt-2">
               <span className={`text-xs px-2 py-0.5 rounded-lg ${STATUS_COLORS[client.status] || ''}`}>{client.status}</span>
