@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { useState, useEffect, useCallback } from 'react';
 
 const navItems = [
   { href: '/', icon: DashboardIcon, label: 'Dashboard' },
   { href: '/tasks', icon: TasksIcon, label: 'Tasks' },
-  { href: '/requests', icon: RequestsIcon, label: 'Requests' },
+  { href: '/requests', icon: RequestsIcon, label: 'Requests', badge: true },
   { href: '/clients', icon: ClientsIcon, label: 'Clients' },
   { href: '/pipeline', icon: PipelineIcon, label: 'Pipeline' },
   { href: '/prospector', icon: ProspectorIcon, label: 'Prospector' },
@@ -21,6 +22,24 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [newRequestCount, setNewRequestCount] = useState(0);
+
+  const fetchNewRequests = useCallback(async () => {
+    try {
+      const res = await fetch('/api/change-requests?status=new');
+      if (res.ok) {
+        const data = await res.json();
+        setNewRequestCount(data.length);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    fetchNewRequests();
+    const interval = setInterval(fetchNewRequests, 30000); // poll every 30s
+    return () => clearInterval(interval);
+  }, [session, fetchNewRequests]);
 
   // Don't render sidebar on login or public request pages (but keep it on /requests admin page)
   if (pathname === '/login' || (pathname.startsWith('/request/') && !pathname.startsWith('/requests'))) return null;
@@ -39,8 +58,9 @@ export default function Sidebar() {
         />
       </div>
 
-      {navItems.map(({ href, icon: Icon, label }) => {
+      {navItems.map(({ href, icon: Icon, label, badge }) => {
         const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+        const showBadge = badge && newRequestCount > 0;
         return (
           <Link
             key={href}
@@ -50,8 +70,13 @@ export default function Sidebar() {
             title={label}
           >
             <Icon className={`w-5 h-5 ${isActive ? 'text-accent' : 'text-white/50 group-hover:text-white/80'}`} />
+            {showBadge && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-lg shadow-red-500/30 animate-pulse">
+                {newRequestCount}
+              </span>
+            )}
             <span className="absolute left-16 bg-white/15 backdrop-blur-xl text-white text-xs px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
-              {label}
+              {label}{showBadge ? ` (${newRequestCount} new)` : ''}
             </span>
           </Link>
         );
