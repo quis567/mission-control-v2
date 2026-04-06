@@ -73,14 +73,14 @@ export default function ClientDetailPage() {
           {client.phone && <span>{client.phone}</span>}
         </div>
         {client.slug && (
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-            <span className="text-xs text-white/30">Request URL:</span>
-            <code className="text-xs text-cyan-400/70 bg-white/5 px-2 py-0.5 rounded">
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/5 min-w-0">
+            <span className="text-xs text-white/30 shrink-0">Request URL:</span>
+            <code className="text-xs text-cyan-400/70 bg-white/5 px-2 py-0.5 rounded break-all min-w-0">
               {typeof window !== 'undefined' ? window.location.origin : ''}/request/{client.slug}
             </code>
             <button
               onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/request/${client.slug}`); }}
-              className="text-xs text-white/30 hover:text-white/60 transition-colors"
+              className="text-xs text-white/30 hover:text-white/60 transition-colors shrink-0"
               title="Copy URL"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
