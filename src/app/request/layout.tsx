@@ -1,7 +1,22 @@
+'use client';
+
+import { useEffect } from 'react';
+
 export default function RequestLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 overflow-auto" style={{ marginLeft: '-5rem' }}>
-      {children}
-    </div>
-  );
+  useEffect(() => {
+    // Remove the ml-20 from the parent main element since sidebar is hidden
+    const main = document.querySelector('main');
+    if (main) {
+      main.style.marginLeft = '0';
+      main.style.padding = '0';
+    }
+    return () => {
+      if (main) {
+        main.style.marginLeft = '';
+        main.style.padding = '';
+      }
+    };
+  }, []);
+
+  return <>{children}</>;
 }
