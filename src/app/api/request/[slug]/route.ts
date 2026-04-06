@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { generatePrompt } from '@/lib/generatePrompt';
+import { sendRequestConfirmation, sendAdminNewRequest } from '@/lib/email';
 
 // Public endpoint — no auth required
 // GET: fetch client info by slug for form pre-fill
@@ -26,7 +27,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const client = await prisma.client.findUnique({ where: { slug }, select: { id: true } });
+    const client = await prisma.client.findUnique({
+      where: { slug },
+      select: { id: true, businessName: true, contactName: true, email: true, websites: { select: { url: true }, take: 1 } },
+    });
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
@@ -53,6 +57,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         generatedPrompt,
       },
     });
+
+    // Send emails (don't block the response)
+    const emailData = { changeType, pageLocation, details, priority: priority || 'normal' };
+    Promise.all([
+      sendRequestConfirmation(client, emailData).catch(() => {}),
+      sendAdminNewRequest(
+        { businessName: client.businessName, websiteUrl: client.websites[0]?.url },
+        { id: changeRequest.id, ...emailData }
+      ).catch(() => {}),
+    ]);
 
     return NextResponse.json(changeRequest, { status: 201 });
   } catch (error) {

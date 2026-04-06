@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { sendRequestComplete } from '@/lib/email';
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,6 +21,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         },
       },
     });
+
+    // Send completion email to client when marked complete
+    if (body.status === 'complete') {
+      sendRequestComplete(
+        { contactName: updated.client.contactName, email: updated.client.email, websiteUrl: updated.client.websites[0]?.url },
+        { changeType: updated.changeType, pageLocation: updated.pageLocation }
+      ).catch(() => {});
+    }
 
     return NextResponse.json(updated);
   } catch (error) {
