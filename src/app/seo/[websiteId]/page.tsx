@@ -878,7 +878,7 @@ export default function SeoDashboardPage() {
           {!isOverview && (
           <div className="mb-6">
             <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">AI SEO Tools</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <button onClick={handleGenerateMeta} disabled={!!aiLoading} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors disabled:opacity-30">
                 <p className="text-sm text-accent mb-1 flex items-center gap-2">
                   {aiLoading === 'meta' && <svg className="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
@@ -903,6 +903,44 @@ export default function SeoDashboardPage() {
               <button onClick={() => setCompetitorModal(true)} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors">
                 <p className="text-sm text-accent mb-1">Keyword Analysis</p>
                 <p className="text-xs text-white/30">Compare with competitors</p>
+              </button>
+              <button onClick={() => {
+                if (!p) return;
+                let pathOnly: string;
+                try { pathOnly = new URL(p.pageUrl).pathname; } catch { pathOnly = p.pageUrl; }
+                const bizName = website?.client?.businessName || 'this business';
+                const siteUrl = website?.url || '';
+                let pgIssues: any[] = [];
+                try { pgIssues = JSON.parse(p.issues || '[]'); } catch { /* skip */ }
+
+                if (pgIssues.length === 0) { setFixPrompt(`No issues found for ${pathOnly} — this page is fully optimized!`); return; }
+
+                let prompt = `Fix all SEO issues on the \`${pathOnly}\` page of ${bizName} (${siteUrl}). This is a ${p.seoScore || 0}/100 SEO score page.\n\nCurrent page data:\n- Title: "${p.pageTitle || 'none'}" (${p.titleLength || 0} chars)\n- Description: "${p.metaDescription || 'none'}" (${p.metaDescLength || 0} chars)\n- H1: "${p.h1Tag || 'none'}" (${p.h1Count || 0} H1 tags)\n- Word count: ${p.wordCount || 0}\n- Target keyword: "${p.targetKeyword || 'none'}"\n- Internal links: ${p.internalLinks || 0}\n- External links: ${p.externalLinks || 0}\n\n## Issues to fix:\n`;
+
+                for (const issue of pgIssues) {
+                  prompt += `- [${issue.importance}] ${issue.issue}\n`;
+                }
+
+                prompt += `\n## Score breakdown:\n- Meta: ${p.metaScore || 0}% | Quality: ${p.qualityScore || 0}% | Structure: ${p.structureScore || 0}% | Links: ${p.linkScore || 0}% | Server: ${p.serverScore || 0}%\n`;
+
+                // Add specific guidance based on scores
+                const guidance: string[] = [];
+                if ((p.metaScore || 0) < 80) guidance.push('- Fix title (50-60 chars) and meta description (120-160 chars). Add canonical URL, OG tags, and Twitter card tags if missing.');
+                if ((p.qualityScore || 0) < 80) guidance.push(`- Increase content to 300+ words (currently ${p.wordCount || 0}). Add <strong> tags around key phrases. Ensure images have alt text.`);
+                if ((p.structureScore || 0) < 80) guidance.push('- Ensure exactly 1 H1 tag. Use H2 subheadings. Fix heading hierarchy (H1 → H2 → H3, no skipping levels).');
+                if ((p.linkScore || 0) < 80) guidance.push('- Add at least one external authority link relevant to the business. Ensure internal navigation links exist.');
+
+                if (guidance.length) prompt += `\n## Guidance for low-scoring areas:\n${guidance.join('\n')}\n`;
+
+                prompt += `\nDo NOT change the visual design, layout structure, or component architecture. Only modify content and metadata.`;
+                setFixPrompt(prompt);
+                setPromptCopied(false);
+              }} className="glass p-4 text-left hover:bg-white/[0.04] transition-colors">
+                <p className="text-sm text-accent mb-1 flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+                  Fix Prompt
+                </p>
+                <p className="text-xs text-white/30">Generate Claude Code prompt</p>
               </button>
             </div>
           </div>
