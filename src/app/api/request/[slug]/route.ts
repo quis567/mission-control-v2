@@ -24,11 +24,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Extract page names from crawled SEO pages
-    const pages = (client.websites[0]?.seoPages || []).map(p => {
+    const seoPages = client.websites[0]?.seoPages || [];
+    const seen = new Set<string>();
+    const pages: string[] = [];
+
+    for (const p of seoPages) {
       const url = new URL(p.pageUrl, 'https://example.com');
-      const path = url.pathname === '/' ? 'Home page' : url.pathname.replace(/^\/|\/$/g, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      return p.pageTitle || path;
-    });
+      const isHome = url.pathname === '/' || url.pathname === '';
+
+      let label: string;
+      if (isHome) {
+        label = 'Home';
+      } else if (p.pageTitle) {
+        // Strip common site name suffixes like "Page Title | Site Name" or "Page Title — Site Name"
+        label = p.pageTitle.replace(/\s*[|–—-]\s*[^|–—-]+$/, '').trim();
+      } else {
+        label = url.pathname.replace(/^\/|\/$/g, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      pages.push(label);
+    }
 
     return NextResponse.json({ id: client.id, businessName: client.businessName, contactName: client.contactName, email: client.email, pages });
   } catch (error) {
