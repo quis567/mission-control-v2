@@ -77,9 +77,19 @@ export async function POST(req: NextRequest) {
     const city = areaParts[0] || null;
     const state = areaParts[1] || null;
 
+    // Normalize site_score before using it anywhere
+    function normalizeScore(raw: any): number | null {
+      if (raw === null || raw === undefined || raw === 'N/A' || raw === '') return null;
+      let n = typeof raw === 'number' ? raw : parseFloat(String(raw));
+      if (isNaN(n)) return null;
+      if (n > 10) n = Math.round(n / 10);
+      return Math.max(1, Math.min(10, Math.round(n)));
+    }
+    const normalizedSiteScore = normalizeScore(site_score);
+
     // Build tags
     const tags: string[] = [];
-    if (site_score && site_score !== 'N/A') tags.push(`Site Score: ${site_score}`);
+    if (normalizedSiteScore !== null) tags.push(`Site Score: ${normalizedSiteScore}`);
     if (source) tags.push(`Source: ${source}`);
 
     // Create client
@@ -128,6 +138,8 @@ export async function POST(req: NextRequest) {
 
     // Also store in ProspectorSearch so it appears on the Prospector page.
     // We append to today's "lead-gen-auto" search for the area, or create a new one.
+    const normalizedScore = normalizedSiteScore;
+
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -164,24 +176,24 @@ export async function POST(req: NextRequest) {
         servicesOffered: '',
         yearsInBusiness: 0,
         websiteQuality:
-          site_score === 'N/A' || !site_score
+          normalizedScore === null
             ? 'Unknown'
-            : Number(site_score) <= 3
+            : normalizedScore <= 3
             ? 'None'
-            : Number(site_score) <= 5
+            : normalizedScore <= 5
             ? 'Basic'
-            : Number(site_score) <= 7
+            : normalizedScore <= 7
             ? 'Moderate'
-            : Number(site_score) <= 9
+            : normalizedScore <= 9
             ? 'Good'
             : 'Professional',
         onlinePresenceNotes: site_reason || '',
-        leadScore: site_score && site_score !== 'N/A' ? (11 - Number(site_score)) * 10 : 50,
+        leadScore: normalizedScore !== null ? (11 - normalizedScore) * 10 : 50,
         scoreLabel:
-          site_score && site_score !== 'N/A'
-            ? Number(site_score) <= 4
+          normalizedScore !== null
+            ? normalizedScore <= 4
               ? 'Hot'
-              : Number(site_score) <= 7
+              : normalizedScore <= 7
               ? 'Warm'
               : 'Cool'
             : 'Warm',
