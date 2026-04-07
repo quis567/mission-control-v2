@@ -1,7 +1,4 @@
 {
-  "schedule": "weekly",
-  "runs_per_week": 2,
-  "leads_per_type_per_run": 8,
   "target_areas": [
     "Winter Garden, FL",
     "Orlando, FL",
@@ -19,8 +16,15 @@
     "Pool Service",
     "Pest Control",
     "Pressure Washing",
-    "General Contractor"
+    "General Contractor",
+    "Tree Service",
+    "Handyman"
   ],
   "priority": "lowest_site_score_first",
-  "duplicate_prevention": true
+  "duplicate_prevention": true,
+  "last_run": {
+    "area": "",
+    "business_type": "",
+    "timestamp": ""
+  }
 }
