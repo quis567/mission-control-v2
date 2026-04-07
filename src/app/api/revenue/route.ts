@@ -8,6 +8,7 @@ export async function GET() {
     });
 
     const clients = await prisma.client.findMany({
+      where: { deletedAt: null },
       select: { id: true, businessName: true, status: true, monthlyRevenue: true },
     });
 

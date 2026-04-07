@@ -21,7 +21,7 @@ export async function GET() {
       recentClients,
       recentProposals,
     ] = await Promise.all([
-      prisma.client.findMany({ select: { id: true, businessName: true, status: true, createdAt: true } }),
+      prisma.client.findMany({ where: { deletedAt: null }, select: { id: true, businessName: true, status: true, createdAt: true } }),
       prisma.service.findMany({ where: { status: 'active', billingType: 'monthly' }, select: { price: true } }),
       prisma.task.findMany({ select: { id: true, title: true, status: true, updatedAt: true } }),
       prisma.task.count({ where: { status: 'done', updatedAt: { gte: weekAgo } } }),
@@ -30,7 +30,7 @@ export async function GET() {
       prisma.proposal.findMany({ select: { id: true, status: true, createdAt: true, client: { select: { businessName: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
       prisma.agent.findMany({ select: { name: true, status: true }, take: 7 }),
       prisma.crawlHistory.findMany({ select: { pagesFound: true, issuesFound: true, crawledAt: true, website: { select: { url: true } } }, orderBy: { crawledAt: 'desc' }, take: 5 }),
-      prisma.client.findMany({ where: { createdAt: { gte: monthAgo } }, select: { businessName: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      prisma.client.findMany({ where: { createdAt: { gte: monthAgo }, deletedAt: null }, select: { businessName: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
       prisma.proposal.findMany({ where: { createdAt: { gte: monthAgo } }, select: { client: { select: { businessName: true } }, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
     ]);
 

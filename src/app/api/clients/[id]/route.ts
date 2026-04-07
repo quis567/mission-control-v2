@@ -7,8 +7,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const client = await prisma.client.findUnique({
-      where: { id },
+    const client = await prisma.client.findFirst({
+      where: { id, deletedAt: null },
       include: {
         websites: { orderBy: { createdAt: 'desc' } },
         services: { orderBy: { createdAt: 'desc' } },
@@ -59,7 +59,18 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await prisma.client.delete({ where: { id } });
+    // Soft delete: mark deleted_at and free the slug so a future client
+    // with the same business name can be created. Hard delete happens
+    // after 7 days via /api/clients/trash/purge.
+    const existing = await prisma.client.findUnique({ where: { id }, select: { slug: true } });
+    if (!existing) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    await prisma.client.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        slug: existing.slug ? `${existing.slug}-deleted-${Date.now().toString(36)}` : null,
+      },
+    });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

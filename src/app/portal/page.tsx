@@ -72,6 +72,71 @@ export default function PortalDashboard() {
         </div>
       )}
 
+      {/* SEO snapshot */}
+      {data.seo && (
+        <div className="glass rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-white/40 uppercase tracking-wider">SEO Health</p>
+            {data.seo.lastCrawled && (
+              <p className="text-xs text-white/25">Updated {new Date(data.seo.lastCrawled).toLocaleDateString()}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            {/* Score circle */}
+            <div className="relative w-20 h-20 shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.5" fill="none"
+                  stroke={
+                    data.seo.score === null ? 'rgba(255,255,255,0.2)' :
+                    data.seo.score >= 80 ? '#34d399' :
+                    data.seo.score >= 60 ? '#fbbf24' : '#f87171'
+                  }
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={`${((data.seo.score ?? 0) / 100) * 97.4} 97.4`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xl font-bold text-white">
+                  {data.seo.score ?? '—'}
+                </span>
+              </div>
+            </div>
+            {/* Stats */}
+            <div className="flex-1 min-w-0 grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-lg font-semibold text-white">{data.seo.pagesCrawled}</p>
+                <p className="text-xs text-white/40">Pages tracked</p>
+              </div>
+              <div>
+                <p className={`text-lg font-semibold ${data.seo.totalIssues === 0 ? 'text-emerald-400' : data.seo.totalIssues < 5 ? 'text-amber-400' : 'text-red-400'}`}>
+                  {data.seo.totalIssues}
+                </p>
+                <p className="text-xs text-white/40">Issues found</p>
+              </div>
+            </div>
+          </div>
+          {data.seo.topIssues.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-white/5">
+              <p className="text-xs text-white/30 mb-2">Most common issues</p>
+              <div className="space-y-1.5">
+                {data.seo.topIssues.map((iss: { type: string; count: number }) => (
+                  <div key={iss.type} className="flex items-center justify-between text-xs">
+                    <span className="text-white/60 truncate pr-2">{iss.type}</span>
+                    <span className="text-white/30 shrink-0">×{iss.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.seo.score === null && (
+            <p className="text-xs text-white/30 mt-3 text-center">Awaiting first SEO scan</p>
+          )}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="glass rounded-xl p-4 text-center">

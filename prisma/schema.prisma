@@ -146,6 +146,7 @@ model Client {
   packageId      String?   @map("package_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
   // Lead enrichment fields (populated by lead-gen-auto)
   ownerName          String?  @map("owner_name")

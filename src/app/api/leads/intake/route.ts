@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
           AND: [
             { businessName: { equals: name.trim(), mode: 'insensitive' } },
             { OR: orConditions },
+            { deletedAt: null },
           ],
         },
       });
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     } else {
       // No phone or website — just check name
       const existing = await prisma.client.findFirst({
-        where: { businessName: { equals: name.trim(), mode: 'insensitive' } },
+        where: { businessName: { equals: name.trim(), mode: 'insensitive' }, deletedAt: null },
       });
       isDuplicate = !!existing;
     }

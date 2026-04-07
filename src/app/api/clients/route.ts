@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortDir = searchParams.get('sortDir') || 'desc';
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { deletedAt: null };
     if (status) where.status = status;
     if (businessType) where.businessType = businessType;
     if (search) {
