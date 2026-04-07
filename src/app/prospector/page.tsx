@@ -81,6 +81,16 @@ export default function ProspectorPage() {
     } catch { /* */ }
   };
 
+  const deleteImport = async (id: string, area: string, count: number) => {
+    if (!confirm(`Delete this import? This will remove the import session AND ${count} client${count !== 1 ? 's' : ''} from ${area}. This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/prospector/imports/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await loadImports();
+      }
+    } catch { /* */ }
+  };
+
   useEffect(() => {
     loadImports();
   }, []);
@@ -340,12 +350,20 @@ export default function ProspectorPage() {
                     </div>
                     <span className="text-xs text-accent">{imp.leadsCount} lead{imp.leadsCount !== 1 ? 's' : ''}</span>
                   </div>
-                  <button
-                    onClick={() => { setLeads(imp.leads); setShowImports(false); }}
-                    className="text-xs text-accent/70 hover:text-accent"
-                  >
-                    Load into table →
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => { setLeads(imp.leads); setShowImports(false); }}
+                      className="text-xs text-accent/70 hover:text-accent"
+                    >
+                      Load into table →
+                    </button>
+                    <button
+                      onClick={() => deleteImport(imp.id, imp.area, imp.leadsCount)}
+                      className="text-xs text-red-400/70 hover:text-red-400"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
               <button
