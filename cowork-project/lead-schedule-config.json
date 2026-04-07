@@ -1,0 +1,26 @@
+{
+  "schedule": "weekly",
+  "runs_per_week": 2,
+  "leads_per_type_per_run": 8,
+  "target_areas": [
+    "Winter Garden, FL",
+    "Orlando, FL",
+    "Windermere, FL",
+    "Clermont, FL",
+    "Ocoee, FL"
+  ],
+  "business_types": [
+    "Roofer",
+    "Plumber",
+    "Electrician",
+    "HVAC",
+    "Painter",
+    "Landscaper",
+    "Pool Service",
+    "Pest Control",
+    "Pressure Washing",
+    "General Contractor"
+  ],
+  "priority": "lowest_site_score_first",
+  "duplicate_prevention": true
+}

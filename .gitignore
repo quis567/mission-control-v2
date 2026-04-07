@@ -44,3 +44,10 @@ next-env.d.ts
 /src/generated/prisma
 
 .vercel
+
+# mcp server
+mcp-server/node_modules
+mcp-server/dist
+
+# cowork
+cowork-project/run-log.json
