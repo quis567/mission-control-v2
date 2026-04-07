@@ -99,6 +99,96 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Also store in ProspectorSearch so it appears on the Prospector page.
+    // We append to today's "lead-gen-auto" search for the area, or create a new one.
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const existingSearch = await prisma.prospectorSearch.findFirst({
+        where: {
+          area,
+          businessTypes: { contains: 'lead-gen-auto' },
+          createdAt: { gte: today },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const leadEntry = {
+        id: 0, // will be reassigned
+        businessName: name.trim(),
+        tradeType: type,
+        contactName: null,
+        email: email || null,
+        phone: phone || null,
+        website: website || 'N/A',
+        googleRating: 0,
+        address: address || '',
+        city: city || '',
+        state: state || '',
+        description: site_reason || '',
+        servicesOffered: '',
+        yearsInBusiness: 0,
+        websiteQuality:
+          site_score === 'N/A' || !site_score
+            ? 'Unknown'
+            : Number(site_score) <= 3
+            ? 'None'
+            : Number(site_score) <= 5
+            ? 'Basic'
+            : Number(site_score) <= 7
+            ? 'Moderate'
+            : Number(site_score) <= 9
+            ? 'Good'
+            : 'Professional',
+        onlinePresenceNotes: site_reason || '',
+        leadScore: site_score && site_score !== 'N/A' ? (11 - Number(site_score)) * 10 : 50,
+        scoreLabel:
+          site_score && site_score !== 'N/A'
+            ? Number(site_score) <= 4
+              ? 'Hot'
+              : Number(site_score) <= 7
+              ? 'Warm'
+              : 'Cool'
+            : 'Warm',
+        salesPitch: '',
+        recommendedPackage: 'Starter',
+        pitchAngle: '',
+        clientId: client.id,
+        addedToPipeline: true,
+        importedAt: new Date().toISOString(),
+      };
+
+      if (existingSearch) {
+        const existingResults = JSON.parse(existingSearch.results || '[]');
+        leadEntry.id = existingResults.length + 1;
+        existingResults.push(leadEntry);
+        await prisma.prospectorSearch.update({
+          where: { id: existingSearch.id },
+          data: {
+            results: JSON.stringify(existingResults),
+            resultsCount: existingResults.length,
+            leadsAdded: { increment: 1 },
+          },
+        });
+      } else {
+        leadEntry.id = 1;
+        await prisma.prospectorSearch.create({
+          data: {
+            area,
+            businessTypes: JSON.stringify(['lead-gen-auto', type]),
+            count: 1,
+            resultsCount: 1,
+            leadsAdded: 1,
+            results: JSON.stringify([leadEntry]),
+          },
+        });
+      }
+    } catch (e) {
+      // Non-critical — lead is still in CRM, just not in Prospector view
+      console.error('Failed to record in ProspectorSearch:', e);
+    }
+
     return NextResponse.json({ status: 'created', id: client.id });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

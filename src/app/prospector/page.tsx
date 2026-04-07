@@ -60,6 +60,22 @@ export default function ProspectorPage() {
   const [addResult, setAddResult] = useState<any>(null);
   const [error, setError] = useState('');
   const [expandedLead, setExpandedLead] = useState<number | null>(null);
+  const [imports, setImports] = useState<Array<{ id: string; area: string; createdAt: string; leadsCount: number; leads: Lead[] }>>([]);
+  const [showImports, setShowImports] = useState(false);
+
+  const loadImports = async () => {
+    try {
+      const res = await fetch('/api/prospector/imports');
+      if (res.ok) {
+        const data = await res.json();
+        setImports(data.imports || []);
+      }
+    } catch { /* */ }
+  };
+
+  useEffect(() => {
+    loadImports();
+  }, []);
 
   // Load persisted leads on mount
   useEffect(() => {
@@ -284,6 +300,56 @@ export default function ProspectorPage() {
           {searching ? 'Searching...' : 'Find Leads'}
         </button>
       </div>
+
+      {/* Auto-Imported Leads (from Claude Desktop / Cowork) */}
+      {imports.length > 0 && (
+        <div className="glass p-4 mb-6">
+          <button
+            onClick={() => setShowImports(!showImports)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div>
+              <h2 className="text-sm uppercase tracking-wider text-white/60">
+                Auto-Imported Leads ({imports.reduce((sum, i) => sum + i.leadsCount, 0)})
+              </h2>
+              <p className="text-xs text-white/40 mt-1">
+                Leads added via Claude Desktop / lead-gen-auto across {imports.length} import session{imports.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <span className="text-white/40 text-xs">{showImports ? '▼ Hide' : '▶ Show'}</span>
+          </button>
+
+          {showImports && (
+            <div className="mt-4 space-y-3">
+              {imports.map((imp) => (
+                <div key={imp.id} className="border border-white/5 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <span className="text-sm text-white/80">{imp.area}</span>
+                      <span className="ml-3 text-xs text-white/40">
+                        {new Date(imp.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <span className="text-xs text-accent">{imp.leadsCount} lead{imp.leadsCount !== 1 ? 's' : ''}</span>
+                  </div>
+                  <button
+                    onClick={() => { setLeads(imp.leads); setShowImports(false); }}
+                    className="text-xs text-accent/70 hover:text-accent"
+                  >
+                    Load into table →
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={loadImports}
+                className="text-xs text-white/40 hover:text-white/60"
+              >
+                Refresh
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Status */}
       {(searching || searchStatus) && (
