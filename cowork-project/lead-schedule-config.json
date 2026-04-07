@@ -1,30 +1,6 @@
 {
-  "target_areas": [
-    "Winter Garden, FL",
-    "Orlando, FL",
-    "Windermere, FL",
-    "Clermont, FL",
-    "Ocoee, FL"
-  ],
-  "business_types": [
-    "Roofer",
-    "Plumber",
-    "Electrician",
-    "HVAC",
-    "Painter",
-    "Landscaper",
-    "Pool Service",
-    "Pest Control",
-    "Pressure Washing",
-    "General Contractor",
-    "Tree Service",
-    "Handyman"
-  ],
-  "priority": "lowest_site_score_first",
   "duplicate_prevention": true,
   "last_run": {
-    "area": "",
-    "business_type": "",
     "timestamp": ""
   }
 }
