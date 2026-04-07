@@ -41,8 +41,8 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, [session, fetchNewRequests]);
 
-  // Don't render sidebar on login or public request pages (but keep it on /requests admin page)
-  if (pathname === '/login' || (pathname.startsWith('/request/') && !pathname.startsWith('/requests'))) return null;
+  // Don't render sidebar on login, public request pages, or client portal (but keep it on /requests admin page)
+  if (pathname === '/login' || pathname.startsWith('/portal') || (pathname.startsWith('/request/') && !pathname.startsWith('/requests'))) return null;
 
   const userName = session?.user?.name || session?.user?.email?.split('@')[0] || '';
   const userInitial = userName.charAt(0).toUpperCase();

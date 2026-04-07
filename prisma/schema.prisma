@@ -147,15 +147,17 @@ model Client {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  package         Package?         @relation(fields: [packageId], references: [id])
-  notes           ClientNote[]
-  websites        Website[]
-  services        Service[]
-  links           ClientLink[]
-  tasks           Task[]
-  proposals       Proposal[]
-  reports         Report[]
-  changeRequests  ChangeRequest[]
+  package              Package?              @relation(fields: [packageId], references: [id])
+  notes                ClientNote[]
+  websites             Website[]
+  services             Service[]
+  links                ClientLink[]
+  tasks                Task[]
+  proposals            Proposal[]
+  reports              Report[]
+  changeRequests       ChangeRequest[]
+  magicLinks           ClientMagicLink[]
+  portalSessions       ClientPortalSession[]
 
   @@map("clients")
 }
@@ -375,6 +377,31 @@ model CrawlHistory {
 // ==========================================
 // Change Request System
 // ==========================================
+
+model ClientMagicLink {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_magic_links")
+}
+
+model ClientPortalSession {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_portal_sessions")
+}
 
 model ChangeRequest {
   id              String    @id @default(uuid())
