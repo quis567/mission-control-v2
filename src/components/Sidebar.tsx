@@ -7,7 +7,6 @@ import { useState, useEffect, useCallback } from 'react';
 
 const navItems = [
   { href: '/', icon: DashboardIcon, label: 'Dashboard' },
-  { href: '/tasks', icon: TasksIcon, label: 'Tasks' },
   { href: '/requests', icon: RequestsIcon, label: 'Requests', badge: true },
   { href: '/clients', icon: ClientsIcon, label: 'Clients' },
   { href: '/pipeline', icon: PipelineIcon, label: 'Pipeline' },
@@ -17,6 +16,7 @@ const navItems = [
   { href: '/proposals', icon: ProposalIcon, label: 'Proposals' },
   { href: '/reports', icon: ReportsIcon, label: 'Reports' },
   { href: '/revenue', icon: RevenueIcon, label: 'Revenue' },
+  { href: '/tasks', icon: TasksIcon, label: 'Tasks' },
 ];
 
 export default function Sidebar() {
