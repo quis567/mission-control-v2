@@ -147,6 +147,15 @@ model Client {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  // Lead enrichment fields (populated by lead-gen-auto)
+  ownerName          String?  @map("owner_name")
+  googleReviewCount  Int?     @map("google_review_count")
+  hasFacebook        Boolean? @map("has_facebook")
+  hasInstagram       Boolean? @map("has_instagram")
+  lastWebsiteUpdate  String?  @map("last_website_update")
+  mobileFriendly     Boolean? @map("mobile_friendly")
+  hasOnlineBooking   Boolean? @map("has_online_booking")
+
   package              Package?              @relation(fields: [packageId], references: [id])
   notes                ClientNote[]
   websites             Website[]

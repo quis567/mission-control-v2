@@ -91,8 +91,53 @@ server.tool(
       .string()
       .optional()
       .describe("Explanation of the website score"),
+    owner_name: z
+      .string()
+      .optional()
+      .describe("First name of the business owner if findable"),
+    google_review_count: z
+      .number()
+      .optional()
+      .describe("Number of Google reviews"),
+    has_facebook: z
+      .boolean()
+      .optional()
+      .describe("Whether they have an active Facebook page"),
+    has_instagram: z
+      .boolean()
+      .optional()
+      .describe("Whether they have an active Instagram page"),
+    last_website_update: z
+      .string()
+      .optional()
+      .describe("Estimated year the website was last updated, e.g., '2019' or 'unknown'"),
+    mobile_friendly: z
+      .boolean()
+      .optional()
+      .describe("Whether the website works properly on mobile"),
+    has_online_booking: z
+      .boolean()
+      .optional()
+      .describe("Whether the site has online booking or scheduling"),
   },
-  async ({ name, type, phone, email, website, address, area, site_score, site_reason }) => {
+  async ({
+    name,
+    type,
+    phone,
+    email,
+    website,
+    address,
+    area,
+    site_score,
+    site_reason,
+    owner_name,
+    google_review_count,
+    has_facebook,
+    has_instagram,
+    last_website_update,
+    mobile_friendly,
+    has_online_booking,
+  }) => {
     const result = await crmFetch("/api/leads/intake", {
       method: "POST",
       body: JSON.stringify({
@@ -106,6 +151,13 @@ server.tool(
         site_score: site_score || "N/A",
         site_reason: site_reason || "",
         source: "lead-gen-auto",
+        owner_name: owner_name || null,
+        google_review_count: typeof google_review_count === "number" ? google_review_count : null,
+        has_facebook: typeof has_facebook === "boolean" ? has_facebook : null,
+        has_instagram: typeof has_instagram === "boolean" ? has_instagram : null,
+        last_website_update: last_website_update || null,
+        mobile_friendly: typeof mobile_friendly === "boolean" ? mobile_friendly : null,
+        has_online_booking: typeof has_online_booking === "boolean" ? has_online_booking : null,
       }),
     });
 

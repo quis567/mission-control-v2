@@ -45,6 +45,14 @@ interface Lead {
   salesPitch: string;
   recommendedPackage: string;
   pitchAngle: string;
+  // Enrichment fields (from lead-gen-auto)
+  ownerName?: string | null;
+  googleReviewCount?: number | null;
+  hasFacebook?: boolean | null;
+  hasInstagram?: boolean | null;
+  lastWebsiteUpdate?: string | null;
+  mobileFriendly?: boolean | null;
+  hasOnlineBooking?: boolean | null;
 }
 
 export default function ProspectorPage() {
@@ -510,6 +518,71 @@ export default function ProspectorPage() {
                     <div className="flex gap-4 mt-2 text-xs">
                       <span className="text-accent">Package: {leads[expandedLead].recommendedPackage}</span>
                       {leads[expandedLead].pitchAngle && <span className="text-white/30">Angle: {leads[expandedLead].pitchAngle}</span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Enrichment fields (from auto lead-gen) */}
+                {(leads[expandedLead].ownerName ||
+                  leads[expandedLead].googleReviewCount != null ||
+                  leads[expandedLead].hasFacebook != null ||
+                  leads[expandedLead].hasInstagram != null ||
+                  leads[expandedLead].lastWebsiteUpdate ||
+                  leads[expandedLead].mobileFriendly != null ||
+                  leads[expandedLead].hasOnlineBooking != null) && (
+                  <div className="col-span-2 border-t border-white/5 pt-4 mt-2">
+                    <p className="text-xs text-white/30 mb-2 uppercase tracking-wider">Enrichment Data</p>
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                      {leads[expandedLead].ownerName && (
+                        <div>
+                          <p className="text-white/30">Owner</p>
+                          <p className="text-white/70">{leads[expandedLead].ownerName}</p>
+                        </div>
+                      )}
+                      {leads[expandedLead].googleReviewCount != null && (
+                        <div>
+                          <p className="text-white/30">Google Reviews</p>
+                          <p className="text-white/70">{leads[expandedLead].googleReviewCount}</p>
+                        </div>
+                      )}
+                      {leads[expandedLead].lastWebsiteUpdate && (
+                        <div>
+                          <p className="text-white/30">Site Updated</p>
+                          <p className="text-white/70">{leads[expandedLead].lastWebsiteUpdate}</p>
+                        </div>
+                      )}
+                      {leads[expandedLead].mobileFriendly != null && (
+                        <div>
+                          <p className="text-white/30">Mobile Friendly</p>
+                          <p className={leads[expandedLead].mobileFriendly ? 'text-emerald-400' : 'text-red-400'}>
+                            {leads[expandedLead].mobileFriendly ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                      )}
+                      {leads[expandedLead].hasOnlineBooking != null && (
+                        <div>
+                          <p className="text-white/30">Online Booking</p>
+                          <p className={leads[expandedLead].hasOnlineBooking ? 'text-emerald-400' : 'text-red-400'}>
+                            {leads[expandedLead].hasOnlineBooking ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                      )}
+                      {leads[expandedLead].hasFacebook != null && (
+                        <div>
+                          <p className="text-white/30">Facebook</p>
+                          <p className={leads[expandedLead].hasFacebook ? 'text-emerald-400' : 'text-white/40'}>
+                            {leads[expandedLead].hasFacebook ? 'Active' : 'None'}
+                          </p>
+                        </div>
+                      )}
+                      {leads[expandedLead].hasInstagram != null && (
+                        <div>
+                          <p className="text-white/30">Instagram</p>
+                          <p className={leads[expandedLead].hasInstagram ? 'text-emerald-400' : 'text-white/40'}>
+                            {leads[expandedLead].hasInstagram ? 'Active' : 'None'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

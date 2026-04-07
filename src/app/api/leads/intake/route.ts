@@ -9,7 +9,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, type, phone, email, website, address, area, site_score, site_reason, source } = body;
+    const {
+      name,
+      type,
+      phone,
+      email,
+      website,
+      address,
+      area,
+      site_score,
+      site_reason,
+      source,
+      // New enrichment fields
+      owner_name,
+      google_review_count,
+      has_facebook,
+      has_instagram,
+      last_website_update,
+      mobile_friendly,
+      has_online_booking,
+    } = body;
 
     if (!name || !type || !area) {
       return NextResponse.json(
@@ -68,12 +87,20 @@ export async function POST(req: NextRequest) {
       data: {
         businessName: name.trim(),
         businessType: type,
+        contactName: owner_name || null,
         phone: phone || null,
         email: email || null,
         city,
         state,
         status: 'lead',
         tags: tags.length > 0 ? JSON.stringify(tags) : null,
+        ownerName: owner_name || null,
+        googleReviewCount: typeof google_review_count === 'number' ? google_review_count : null,
+        hasFacebook: typeof has_facebook === 'boolean' ? has_facebook : null,
+        hasInstagram: typeof has_instagram === 'boolean' ? has_instagram : null,
+        lastWebsiteUpdate: last_website_update || null,
+        mobileFriendly: typeof mobile_friendly === 'boolean' ? mobile_friendly : null,
+        hasOnlineBooking: typeof has_online_booking === 'boolean' ? has_online_booking : null,
       },
     });
 
@@ -114,14 +141,21 @@ export async function POST(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
       });
 
-      const leadEntry = {
+      const leadEntry: any = {
         id: 0, // will be reassigned
         businessName: name.trim(),
         tradeType: type,
-        contactName: null,
+        contactName: owner_name || null,
         email: email || null,
         phone: phone || null,
         website: website || 'N/A',
+        ownerName: owner_name || null,
+        googleReviewCount: typeof google_review_count === 'number' ? google_review_count : null,
+        hasFacebook: typeof has_facebook === 'boolean' ? has_facebook : null,
+        hasInstagram: typeof has_instagram === 'boolean' ? has_instagram : null,
+        lastWebsiteUpdate: last_website_update || null,
+        mobileFriendly: typeof mobile_friendly === 'boolean' ? mobile_friendly : null,
+        hasOnlineBooking: typeof has_online_booking === 'boolean' ? has_online_booking : null,
         googleRating: 0,
         address: address || '',
         city: city || '',
