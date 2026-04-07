@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 });
 
       const client = await prisma.client.findFirst({
-        where: { email: { equals: email, mode: 'insensitive' } },
+        where: { email: { equals: email, mode: 'insensitive' }, deletedAt: null },
         select: { id: true, contactName: true, businessName: true, email: true },
       });
 
@@ -74,10 +74,10 @@ export async function POST(request: NextRequest) {
 
       const magicLink = await prisma.clientMagicLink.findUnique({
         where: { token },
-        include: { client: { select: { id: true, businessName: true, contactName: true, email: true, slug: true } } },
+        include: { client: { select: { id: true, businessName: true, contactName: true, email: true, slug: true, deletedAt: true } } },
       });
 
-      if (!magicLink || magicLink.usedAt || magicLink.expiresAt < new Date()) {
+      if (!magicLink || magicLink.usedAt || magicLink.expiresAt < new Date() || magicLink.client?.deletedAt) {
         return NextResponse.json({ error: 'Invalid or expired link' }, { status: 401 });
       }
 
@@ -104,10 +104,10 @@ export async function POST(request: NextRequest) {
 
       const session = await prisma.clientPortalSession.findUnique({
         where: { token },
-        include: { client: { select: { id: true, businessName: true, contactName: true, email: true, slug: true } } },
+        include: { client: { select: { id: true, businessName: true, contactName: true, email: true, slug: true, deletedAt: true } } },
       });
 
-      if (!session || session.expiresAt < new Date()) {
+      if (!session || session.expiresAt < new Date() || session.client?.deletedAt) {
         return NextResponse.json({ error: 'Session expired' }, { status: 401 });
       }
 

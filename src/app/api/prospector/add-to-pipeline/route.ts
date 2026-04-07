@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     for (const lead of leads) {
       // Check for duplicate
       const existing = await prisma.client.findFirst({
-        where: { businessName: { equals: lead.businessName, mode: 'insensitive' } },
+        where: { businessName: { equals: lead.businessName, mode: 'insensitive' }, deletedAt: null },
       });
 
       if (existing) {

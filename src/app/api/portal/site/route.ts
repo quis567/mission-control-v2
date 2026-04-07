@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     const clientId = await getPortalClientId(request);
     if (!clientId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, deletedAt: null },
       select: {
         businessName: true,
         websites: {
