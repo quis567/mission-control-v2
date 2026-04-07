@@ -264,9 +264,6 @@ export default function WebsitesPage() {
                 {/* Actions */}
                 <div className="px-4 pb-4 pt-1 flex gap-2">
                   <Link href={`/seo/${w.id}`} className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-[11px] hover:bg-accent/25 transition-all">View SEO</Link>
-                  {type === 'truepath_managed' && (
-                    <Link href={`/seo/${w.id}`} className="px-3 py-1.5 rounded-lg bg-emerald-400/10 text-emerald-400 text-[11px] hover:bg-emerald-400/20 transition-all">Apply Changes</Link>
-                  )}
                   {type === 'external' && (
                     <button onClick={async (e) => { e.preventDefault(); try { await exportSeoPdf(w.id); } catch (err: any) { alert(err.message); } }} className="px-3 py-1.5 rounded-lg bg-blue-400/10 text-blue-400 text-[11px] hover:bg-blue-400/20 transition-all">Export Recs</button>
                   )}
