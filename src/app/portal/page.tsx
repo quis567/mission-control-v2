@@ -92,7 +92,7 @@ export default function PortalDashboard() {
 
       {/* Website hero card with screenshot */}
       {data.website && (
-        <div className="glass rounded-xl overflow-hidden mb-8">
+        <div className="relative glass rounded-xl overflow-hidden mb-10">
           {data.website.screenshotUrl && (
             <a
               href={data.website.url}
@@ -122,6 +122,14 @@ export default function PortalDashboard() {
               </span>
             </div>
           </div>
+          {data.slug && (
+            <a
+              href={`/request/${data.slug}`}
+              className="absolute left-1/2 -translate-x-1/2 -bottom-4 text-xs px-4 py-2 rounded-lg bg-accent text-black font-semibold shadow-lg hover:brightness-110 transition-all whitespace-nowrap"
+            >
+              + Submit Request
+            </a>
+          )}
         </div>
       )}
 
@@ -131,14 +139,6 @@ export default function PortalDashboard() {
       <div className="flex items-center gap-3 mb-3">
         <h2 className="text-xs text-white/50 uppercase tracking-[0.15em] font-semibold">Your Website</h2>
         <div className="flex-1 h-px bg-white/5" />
-        {data.slug && (
-          <a
-            href={`/request/${data.slug}`}
-            className="text-xs px-3 py-1.5 rounded-lg bg-accent text-black font-semibold hover:brightness-110 transition-all shrink-0"
-          >
-            + Submit Request
-          </a>
-        )}
       </div>
 
       {/* SEO snapshot */}
@@ -435,18 +435,10 @@ export default function PortalDashboard() {
       <div className="flex items-center gap-3 mb-3">
         <h2 className="text-xs text-white/50 uppercase tracking-[0.15em] font-semibold">Your Requests</h2>
         <div className="flex-1 h-px bg-white/5" />
-        {data.slug && (
-          <a
-            href={`/request/${data.slug}`}
-            className="text-xs px-3 py-1.5 rounded-lg bg-accent text-black font-semibold hover:brightness-110 transition-all shrink-0"
-          >
-            + Submit Request
-          </a>
-        )}
       </div>
 
       {/* Request stats */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-4 gap-3 mb-4">
         <div className="glass rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-blue-400">{data.openRequests}</p>
           <p className="text-[11px] text-white/40 uppercase tracking-wide">Open</p>
@@ -459,6 +451,15 @@ export default function PortalDashboard() {
           <p className="text-2xl font-bold text-white/60">{data.totalRequests}</p>
           <p className="text-[11px] text-white/40 uppercase tracking-wide">Total</p>
         </div>
+        {data.slug && (
+          <a
+            href={`/request/${data.slug}`}
+            className="rounded-xl p-4 text-center bg-accent text-black font-semibold hover:brightness-110 transition-all flex flex-col items-center justify-center"
+          >
+            <p className="text-2xl font-bold leading-none">+</p>
+            <p className="text-[11px] uppercase tracking-wide mt-1">Submit</p>
+          </a>
+        )}
       </div>
 
       {/* Recent activity */}
