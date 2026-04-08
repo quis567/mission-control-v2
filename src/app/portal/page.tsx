@@ -126,149 +126,6 @@ export default function PortalDashboard() {
       )}
 
       {/* ======================================== */}
-      {/* SECTION: YOUR BUSINESS                    */}
-      {/* ======================================== */}
-      <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-xs text-white/50 uppercase tracking-[0.15em] font-semibold">Your Business</h2>
-        <div className="flex-1 h-px bg-white/5" />
-      </div>
-
-      {/* Leads / Form Submissions */}
-      {leads && (
-        <div className="glass rounded-xl p-4 mb-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-white">Leads</p>
-            {leads.submissions.length > 0 && (
-              <a
-                href="/api/portal/leads?format=csv"
-                className="text-xs text-cyan-400 hover:text-cyan-300"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const token = localStorage.getItem('portal_token');
-                  const link = document.createElement('a');
-                  link.href = '/api/portal/leads?format=csv';
-                  fetch('/api/portal/leads?format=csv', { headers: { 'x-portal-token': token || '' } })
-                    .then((r) => r.blob())
-                    .then((b) => {
-                      const url = URL.createObjectURL(b);
-                      link.href = url;
-                      link.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
-                      link.click();
-                      URL.revokeObjectURL(url);
-                    });
-                }}
-              >
-                Export CSV
-              </a>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <p className="text-3xl font-bold text-white">{leads.stats.thisMonth}</p>
-              <p className="text-[11px] text-white/40 uppercase tracking-wide">This month</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-white/40">{leads.stats.lastMonth}</p>
-              <p className="text-[11px] text-white/40 uppercase tracking-wide">Last month</p>
-            </div>
-          </div>
-          {leads.submissions.length === 0 ? (
-            <p className="text-xs text-white/30 text-center py-3 border-t border-white/5 mt-3">No leads captured yet</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto pt-3 border-t border-white/5">
-              {leads.submissions.slice(0, 5).map((l: any) => (
-                <div key={l.id} className="text-xs border-b border-white/5 pb-2 last:border-0">
-                  <div className="flex justify-between">
-                    <span className="text-white font-medium truncate pr-2">{l.name || 'Anonymous'}</span>
-                    <span className="text-white/30 shrink-0">{new Date(l.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  {(l.email || l.phone) && (
-                    <p className="text-white/50 truncate">{[l.email, l.phone].filter(Boolean).join(' · ')}</p>
-                  )}
-                  {l.message && <p className="text-white/40 line-clamp-2 mt-1">{l.message}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Google Business Profile */}
-      {gbp && (
-        <div className="glass rounded-xl p-4 mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-white">Google Reviews</p>
-            {(gbp.connected || gbp.placeId) && (
-              <button
-                onClick={refreshGbp}
-                disabled={refreshingGbp}
-                className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
-              >
-                {refreshingGbp ? 'Refreshing…' : 'Refresh'}
-              </button>
-            )}
-          </div>
-          {!gbp.connected && !gbp.placeId && (
-            <div className="text-center py-4">
-              <p className="text-xs text-white/40 mb-3">Connect your Google Business Profile to see reviews here.</p>
-              <button
-                onClick={connectGbp}
-                className="text-xs px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-              >
-                Connect Google
-              </button>
-            </div>
-          )}
-          {gbp.snapshot && (
-            <>
-              <div className="flex items-center gap-6 mb-3">
-                <div>
-                  <p className="text-3xl font-bold text-amber-400">
-                    {gbp.snapshot.rating != null ? Number(gbp.snapshot.rating).toFixed(1) : '—'}
-                  </p>
-                  <p className="text-[11px] text-white/40 uppercase tracking-wide">{gbp.snapshot.reviewCount ?? 0} reviews</p>
-                </div>
-                {gbp.snapshot.newReviewsMonth != null && (
-                  <div>
-                    <p className="text-3xl font-semibold text-emerald-400">+{gbp.snapshot.newReviewsMonth}</p>
-                    <p className="text-[11px] text-white/40 uppercase tracking-wide">New this month</p>
-                  </div>
-                )}
-              </div>
-              {(() => {
-                try {
-                  const recent = JSON.parse(gbp.snapshot.recentReviews || '[]');
-                  return recent.length > 0 ? (
-                    <div className="space-y-2 pt-3 border-t border-white/5">
-                      {recent.slice(0, 3).map((r: any, i: number) => (
-                        <div key={i} className="text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-white font-medium">{r.author}</span>
-                            <span className="text-amber-400">{'★'.repeat(r.rating)}</span>
-                          </div>
-                          {r.text && <p className="text-white/50 line-clamp-2 mt-1">{r.text}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null;
-                } catch { return null; }
-              })()}
-              {gbp.reviewUrl && (
-                <a
-                  href={gbp.reviewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300 mt-3"
-                >
-                  Respond to reviews →
-                </a>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ======================================== */}
       {/* SECTION: YOUR WEBSITE                     */}
       {/* ======================================== */}
       <div className="flex items-center gap-3 mb-3">
@@ -418,6 +275,149 @@ export default function PortalDashboard() {
               {refreshingHealth ? 'Running first check…' : 'Run first check'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ======================================== */}
+      {/* SECTION: YOUR BUSINESS                    */}
+      {/* ======================================== */}
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="text-xs text-white/50 uppercase tracking-[0.15em] font-semibold">Your Business</h2>
+        <div className="flex-1 h-px bg-white/5" />
+      </div>
+
+      {/* Leads / Form Submissions — hidden for now */}
+      {false && leads && (
+        <div className="glass rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-white">Leads</p>
+            {leads.submissions.length > 0 && (
+              <a
+                href="/api/portal/leads?format=csv"
+                className="text-xs text-cyan-400 hover:text-cyan-300"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const token = localStorage.getItem('portal_token');
+                  const link = document.createElement('a');
+                  link.href = '/api/portal/leads?format=csv';
+                  fetch('/api/portal/leads?format=csv', { headers: { 'x-portal-token': token || '' } })
+                    .then((r) => r.blob())
+                    .then((b) => {
+                      const url = URL.createObjectURL(b);
+                      link.href = url;
+                      link.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                    });
+                }}
+              >
+                Export CSV
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-3xl font-bold text-white">{leads.stats.thisMonth}</p>
+              <p className="text-[11px] text-white/40 uppercase tracking-wide">This month</p>
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-white/40">{leads.stats.lastMonth}</p>
+              <p className="text-[11px] text-white/40 uppercase tracking-wide">Last month</p>
+            </div>
+          </div>
+          {leads.submissions.length === 0 ? (
+            <p className="text-xs text-white/30 text-center py-3 border-t border-white/5 mt-3">No leads captured yet</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto pt-3 border-t border-white/5">
+              {leads.submissions.slice(0, 5).map((l: any) => (
+                <div key={l.id} className="text-xs border-b border-white/5 pb-2 last:border-0">
+                  <div className="flex justify-between">
+                    <span className="text-white font-medium truncate pr-2">{l.name || 'Anonymous'}</span>
+                    <span className="text-white/30 shrink-0">{new Date(l.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  {(l.email || l.phone) && (
+                    <p className="text-white/50 truncate">{[l.email, l.phone].filter(Boolean).join(' · ')}</p>
+                  )}
+                  {l.message && <p className="text-white/40 line-clamp-2 mt-1">{l.message}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Google Business Profile */}
+      {gbp && (
+        <div className="glass rounded-xl p-4 mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-white">Google Reviews</p>
+            {(gbp.connected || gbp.placeId) && (
+              <button
+                onClick={refreshGbp}
+                disabled={refreshingGbp}
+                className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
+              >
+                {refreshingGbp ? 'Refreshing…' : 'Refresh'}
+              </button>
+            )}
+          </div>
+          {!gbp.connected && !gbp.placeId && (
+            <div className="text-center py-4">
+              <p className="text-xs text-white/40 mb-3">Connect your Google Business Profile to see reviews here.</p>
+              <button
+                onClick={connectGbp}
+                className="text-xs px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                Connect Google
+              </button>
+            </div>
+          )}
+          {gbp.snapshot && (
+            <>
+              <div className="flex items-center gap-6 mb-3">
+                <div>
+                  <p className="text-3xl font-bold text-amber-400">
+                    {gbp.snapshot.rating != null ? Number(gbp.snapshot.rating).toFixed(1) : '—'}
+                  </p>
+                  <p className="text-[11px] text-white/40 uppercase tracking-wide">{gbp.snapshot.reviewCount ?? 0} reviews</p>
+                </div>
+                {gbp.snapshot.newReviewsMonth != null && (
+                  <div>
+                    <p className="text-3xl font-semibold text-emerald-400">+{gbp.snapshot.newReviewsMonth}</p>
+                    <p className="text-[11px] text-white/40 uppercase tracking-wide">New this month</p>
+                  </div>
+                )}
+              </div>
+              {(() => {
+                try {
+                  const recent = JSON.parse(gbp.snapshot.recentReviews || '[]');
+                  return recent.length > 0 ? (
+                    <div className="space-y-2 pt-3 border-t border-white/5">
+                      {recent.slice(0, 3).map((r: any, i: number) => (
+                        <div key={i} className="text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-white font-medium">{r.author}</span>
+                            <span className="text-amber-400">{'★'.repeat(r.rating)}</span>
+                          </div>
+                          {r.text && <p className="text-white/50 line-clamp-2 mt-1">{r.text}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null;
+                } catch { return null; }
+              })()}
+              {gbp.reviewUrl && (
+                <a
+                  href={gbp.reviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300 mt-3"
+                >
+                  Respond to reviews →
+                </a>
+              )}
+            </>
+          )}
         </div>
       )}
 
