@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       site_score,
       site_reason,
       source,
-      // New enrichment fields
+      // Enrichment fields
       owner_name,
       google_review_count,
       has_facebook,
@@ -37,40 +37,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Duplicate check: match name AND (phone OR website)
-    const normalizedName = name.trim().toLowerCase();
-    const conditions: any[] = [
-      { businessName: { equals: name.trim(), mode: 'insensitive' as const } },
-    ];
+    const trimmedName = name.trim();
 
-    const orConditions: any[] = [];
-    if (phone) orConditions.push({ phone: { equals: phone.trim() } });
-    if (website && website !== 'N/A') orConditions.push({ websites: { some: { url: { contains: website.replace(/^https?:\/\//, '').replace(/\/$/, ''), mode: 'insensitive' as const } } } });
-
-    let isDuplicate = false;
-
-    if (orConditions.length > 0) {
-      // Check name + (phone or website)
-      const existing = await prisma.client.findFirst({
-        where: {
-          AND: [
-            { businessName: { equals: name.trim(), mode: 'insensitive' } },
-            { OR: orConditions },
-            { deletedAt: null },
-          ],
+    // ---- Dedupe check 1: existing Client in the CRM ----
+    // If this business is already a client (in any status), skip — we don't
+    // want to re-prospect someone already being worked.
+    const clientOr: any[] = [];
+    if (phone) clientOr.push({ phone: { equals: phone.trim() } });
+    if (website && website !== 'N/A') {
+      clientOr.push({
+        websites: {
+          some: {
+            url: {
+              contains: website.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+              mode: 'insensitive' as const,
+            },
+          },
         },
       });
-      isDuplicate = !!existing;
-    } else {
-      // No phone or website — just check name
-      const existing = await prisma.client.findFirst({
-        where: { businessName: { equals: name.trim(), mode: 'insensitive' }, deletedAt: null },
-      });
-      isDuplicate = !!existing;
     }
 
-    if (isDuplicate) {
-      return NextResponse.json({ status: 'duplicate', skipped: true });
+    const existingClient = await prisma.client.findFirst({
+      where: clientOr.length > 0
+        ? {
+            AND: [
+              { businessName: { equals: trimmedName, mode: 'insensitive' } },
+              { OR: clientOr },
+              { deletedAt: null },
+            ],
+          }
+        : { businessName: { equals: trimmedName, mode: 'insensitive' }, deletedAt: null },
+    });
+
+    if (existingClient) {
+      return NextResponse.json({ status: 'duplicate-client', skipped: true });
     }
 
     // Parse area into city/state
@@ -78,162 +78,112 @@ export async function POST(req: NextRequest) {
     const city = areaParts[0] || null;
     const state = areaParts[1] || null;
 
-    // The incoming site_score is treated as a direct 0-100 lead score
-    // Higher = better prospect (Basic website = 70, Good website = 30)
+    // Lead score + quality labels
     function parseLeadScore(raw: any): number | null {
       if (raw === null || raw === undefined || raw === 'N/A' || raw === '') return null;
       const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
       if (isNaN(n)) return null;
-      // Clamp to 0-100
       return Math.max(0, Math.min(100, Math.round(n)));
     }
-    const leadScoreValue = parseLeadScore(site_score);
-
-    // Derive a quality label from the score
     function scoreToQuality(score: number | null): string {
       if (score === null) return 'Unknown';
-      if (score >= 65) return 'None';        // Basic / no website (Hot lead)
-      if (score >= 40) return 'Basic';       // Moderate quality
-      if (score >= 20) return 'Moderate';    // Decent
-      return 'Good';                          // Professional (Cool lead)
+      if (score >= 65) return 'None';
+      if (score >= 40) return 'Basic';
+      if (score >= 20) return 'Moderate';
+      return 'Good';
     }
-
     function scoreToLabel(score: number | null): string {
       if (score === null) return 'Warm';
       if (score >= 60) return 'Hot';
       if (score >= 30) return 'Warm';
       return 'Cool';
     }
+    const leadScoreValue = parseLeadScore(site_score);
 
-    // Build tags
-    const tags: string[] = [];
-    if (leadScoreValue !== null) tags.push(`Lead Score: ${leadScoreValue}`);
-    if (source) tags.push(`Source: ${source}`);
+    // ---- Dedupe check 2: existing Prospector entry in today's search ----
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Create client
-    const client = await prisma.client.create({
-      data: {
-        businessName: name.trim(),
-        businessType: type,
-        contactName: owner_name || null,
-        phone: phone || null,
-        email: email || null,
-        city,
-        state,
-        status: 'lead',
-        tags: tags.length > 0 ? JSON.stringify(tags) : null,
-        ownerName: owner_name || null,
-        googleReviewCount: typeof google_review_count === 'number' ? google_review_count : null,
-        hasFacebook: typeof has_facebook === 'boolean' ? has_facebook : null,
-        hasInstagram: typeof has_instagram === 'boolean' ? has_instagram : null,
-        lastWebsiteUpdate: last_website_update || null,
-        mobileFriendly: typeof mobile_friendly === 'boolean' ? mobile_friendly : null,
-        hasOnlineBooking: typeof has_online_booking === 'boolean' ? has_online_booking : null,
+    const existingSearch = await prisma.prospectorSearch.findFirst({
+      where: {
+        area,
+        businessTypes: { contains: 'lead-gen-auto' },
+        createdAt: { gte: today },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    // Add site audit note
-    if (site_reason) {
-      await prisma.clientNote.create({
-        data: {
-          clientId: client.id,
-          content: `🌐 Website Audit (Auto):\nLead Score: ${leadScoreValue ?? 'N/A'}/100\n${site_reason}\n\nAddress: ${address || 'N/A'}\nSource: ${source || 'lead-gen-auto'}`,
-        },
-      });
-    }
+    const leadEntry: any = {
+      id: 0, // reassigned below
+      businessName: trimmedName,
+      tradeType: type,
+      contactName: owner_name || null,
+      email: email || null,
+      phone: phone || null,
+      website: website || 'N/A',
+      ownerName: owner_name || null,
+      googleReviewCount: typeof google_review_count === 'number' ? google_review_count : null,
+      hasFacebook: typeof has_facebook === 'boolean' ? has_facebook : null,
+      hasInstagram: typeof has_instagram === 'boolean' ? has_instagram : null,
+      lastWebsiteUpdate: last_website_update || null,
+      mobileFriendly: typeof mobile_friendly === 'boolean' ? mobile_friendly : null,
+      hasOnlineBooking: typeof has_online_booking === 'boolean' ? has_online_booking : null,
+      googleRating: 0,
+      address: address || '',
+      city: city || '',
+      state: state || '',
+      description: site_reason || '',
+      servicesOffered: '',
+      yearsInBusiness: 0,
+      websiteQuality: scoreToQuality(leadScoreValue),
+      onlinePresenceNotes: site_reason || '',
+      leadScore: leadScoreValue ?? 50,
+      scoreLabel: scoreToLabel(leadScoreValue),
+      salesPitch: '',
+      recommendedPackage: 'Starter',
+      pitchAngle: '',
+      clientId: null,
+      addedToPipeline: false,
+      importedAt: new Date().toISOString(),
+      source: source || 'lead-gen-auto',
+      siteReason: site_reason || null,
+    };
 
-    // Create website record if URL provided
-    if (website && website !== 'N/A' && website !== 'None') {
-      const url = website.startsWith('http') ? website : `https://${website}`;
-      await prisma.website.create({
-        data: {
-          clientId: client.id,
-          url,
-          status: 'live',
-        },
-      });
-    }
+    if (existingSearch) {
+      const existingResults = JSON.parse(existingSearch.results || '[]');
 
-    // Also store in ProspectorSearch so it appears on the Prospector page.
-    // We append to today's "lead-gen-auto" search for the area, or create a new one.
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const existingSearch = await prisma.prospectorSearch.findFirst({
-        where: {
-          area,
-          businessTypes: { contains: 'lead-gen-auto' },
-          createdAt: { gte: today },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      const leadEntry: any = {
-        id: 0, // will be reassigned
-        businessName: name.trim(),
-        tradeType: type,
-        contactName: owner_name || null,
-        email: email || null,
-        phone: phone || null,
-        website: website || 'N/A',
-        ownerName: owner_name || null,
-        googleReviewCount: typeof google_review_count === 'number' ? google_review_count : null,
-        hasFacebook: typeof has_facebook === 'boolean' ? has_facebook : null,
-        hasInstagram: typeof has_instagram === 'boolean' ? has_instagram : null,
-        lastWebsiteUpdate: last_website_update || null,
-        mobileFriendly: typeof mobile_friendly === 'boolean' ? mobile_friendly : null,
-        hasOnlineBooking: typeof has_online_booking === 'boolean' ? has_online_booking : null,
-        googleRating: 0,
-        address: address || '',
-        city: city || '',
-        state: state || '',
-        description: site_reason || '',
-        servicesOffered: '',
-        yearsInBusiness: 0,
-        websiteQuality: scoreToQuality(leadScoreValue),
-        onlinePresenceNotes: site_reason || '',
-        leadScore: leadScoreValue ?? 50,
-        scoreLabel: scoreToLabel(leadScoreValue),
-        salesPitch: '',
-        recommendedPackage: 'Starter',
-        pitchAngle: '',
-        clientId: client.id,
-        addedToPipeline: true,
-        importedAt: new Date().toISOString(),
-      };
-
-      if (existingSearch) {
-        const existingResults = JSON.parse(existingSearch.results || '[]');
-        leadEntry.id = existingResults.length + 1;
-        existingResults.push(leadEntry);
-        await prisma.prospectorSearch.update({
-          where: { id: existingSearch.id },
-          data: {
-            results: JSON.stringify(existingResults),
-            resultsCount: existingResults.length,
-            leadsAdded: { increment: 1 },
-          },
-        });
-      } else {
-        leadEntry.id = 1;
-        await prisma.prospectorSearch.create({
-          data: {
-            area,
-            businessTypes: JSON.stringify(['lead-gen-auto', type]),
-            count: 1,
-            resultsCount: 1,
-            leadsAdded: 1,
-            results: JSON.stringify([leadEntry]),
-          },
-        });
+      // Dedupe inside this search by name
+      const dupInProspector = existingResults.some(
+        (r: any) => (r.businessName || '').trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (dupInProspector) {
+        return NextResponse.json({ status: 'duplicate-prospect', skipped: true });
       }
-    } catch (e) {
-      // Non-critical — lead is still in CRM, just not in Prospector view
-      console.error('Failed to record in ProspectorSearch:', e);
+
+      leadEntry.id = existingResults.length + 1;
+      existingResults.push(leadEntry);
+      await prisma.prospectorSearch.update({
+        where: { id: existingSearch.id },
+        data: {
+          results: JSON.stringify(existingResults),
+          resultsCount: existingResults.length,
+        },
+      });
+    } else {
+      leadEntry.id = 1;
+      await prisma.prospectorSearch.create({
+        data: {
+          area,
+          businessTypes: JSON.stringify(['lead-gen-auto', type]),
+          count: 1,
+          resultsCount: 1,
+          leadsAdded: 0,
+          results: JSON.stringify([leadEntry]),
+        },
+      });
     }
 
-    return NextResponse.json({ status: 'created', id: client.id });
+    return NextResponse.json({ status: 'prospected' });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

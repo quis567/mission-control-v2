@@ -70,6 +70,12 @@ export default function ProspectorPage() {
   const [expandedLead, setExpandedLead] = useState<number | null>(null);
   const [imports, setImports] = useState<Array<{ id: string; area: string; createdAt: string; leadsCount: number; leads: Lead[] }>>([]);
   const [showImports, setShowImports] = useState(false);
+  const [archivedKeys, setArchivedKeys] = useState<Set<string>>(new Set());
+  const [viewTab, setViewTab] = useState<'new' | 'archived'>('new');
+
+  // Stable key per lead so archive state survives reloads / reorders
+  const leadKey = (l: Lead): string =>
+    `${(l.businessName || '').trim().toLowerCase()}|${(l.phone || l.website || '').trim().toLowerCase()}`;
 
   const loadImports = async () => {
     try {
@@ -105,6 +111,11 @@ export default function ProspectorPage() {
       }
       const savedArea = localStorage.getItem('prospector_area');
       if (savedArea) setArea(savedArea);
+      const savedArchived = localStorage.getItem('prospector_archived');
+      if (savedArchived) {
+        const parsed = JSON.parse(savedArchived);
+        if (Array.isArray(parsed)) setArchivedKeys(new Set(parsed));
+      }
     } catch { /* */ }
   }, []);
 
@@ -116,6 +127,11 @@ export default function ProspectorPage() {
     }
   }, [leads, area]);
 
+  // Persist archive state
+  useEffect(() => {
+    localStorage.setItem('prospector_archived', JSON.stringify(Array.from(archivedKeys)));
+  }, [archivedKeys]);
+
   const clearResults = () => {
     setLeads([]);
     setSelectedLeads(new Set());
@@ -126,6 +142,38 @@ export default function ProspectorPage() {
     localStorage.removeItem('prospector_area');
   };
 
+  const archiveLead = (lead: Lead) => {
+    setArchivedKeys(prev => { const next = new Set(prev); next.add(leadKey(lead)); return next; });
+  };
+
+  const unarchiveLead = (lead: Lead) => {
+    setArchivedKeys(prev => { const next = new Set(prev); next.delete(leadKey(lead)); return next; });
+  };
+
+  const archiveSelected = () => {
+    setArchivedKeys(prev => {
+      const next = new Set(prev);
+      for (const i of selectedLeads) {
+        const l = leads[i];
+        if (l) next.add(leadKey(l));
+      }
+      return next;
+    });
+    setSelectedLeads(new Set());
+  };
+
+  const unarchiveSelected = () => {
+    setArchivedKeys(prev => {
+      const next = new Set(prev);
+      for (const i of selectedLeads) {
+        const l = leads[i];
+        if (l) next.delete(leadKey(l));
+      }
+      return next;
+    });
+    setSelectedLeads(new Set());
+  };
+
   const toggleType = (t: string) => setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const toggleSelectLead = (i: number) => {
@@ -133,8 +181,15 @@ export default function ProspectorPage() {
   };
 
   const selectAll = () => {
-    if (selectedLeads.size === leads.length) setSelectedLeads(new Set());
-    else setSelectedLeads(new Set(leads.map((_, i) => i)));
+    // Operate on currently-visible leads only
+    const visibleIndices = leads.reduce<number[]>((acc, l, i) => {
+      const isArch = archivedKeys.has(leadKey(l));
+      if ((viewTab === 'archived') === isArch) acc.push(i);
+      return acc;
+    }, []);
+    const allSelected = visibleIndices.every(i => selectedLeads.has(i));
+    if (allSelected) setSelectedLeads(new Set());
+    else setSelectedLeads(new Set(visibleIndices));
   };
 
   const handleSearch = async () => {
@@ -211,6 +266,17 @@ export default function ProspectorPage() {
       if (res.ok) {
         const data = await res.json();
         setAddResult(data);
+        // Auto-archive any leads that successfully landed in (or were already in) the pipeline
+        setArchivedKeys(prev => {
+          const next = new Set(prev);
+          for (const r of data.results || []) {
+            if (r.status === 'added' || r.status === 'duplicate') {
+              const match = leadsToAdd.find(l => l.businessName === r.businessName);
+              if (match) next.add(leadKey(match));
+            }
+          }
+          return next;
+        });
         setSelectedLeads(new Set());
       }
     } catch { /* */ } finally { setAdding(false); }
@@ -408,10 +474,33 @@ export default function ProspectorPage() {
       )}
 
       {/* Results Table */}
-      {leads.length > 0 && (
+      {leads.length > 0 && (() => {
+        const newLeads = leads.filter(l => !archivedKeys.has(leadKey(l)));
+        const archivedLeads = leads.filter(l => archivedKeys.has(leadKey(l)));
+        const visibleLeads = viewTab === 'archived' ? archivedLeads : newLeads;
+
+        return (
         <div>
+          {/* Tabs */}
+          <div className="flex gap-2 mb-4 border-b border-white/5">
+            <button
+              onClick={() => { setViewTab('new'); setSelectedLeads(new Set()); }}
+              className={`px-4 py-2 text-xs uppercase tracking-wider transition-all border-b-2 ${viewTab === 'new' ? 'text-accent border-accent' : 'text-white/40 border-transparent hover:text-white/60'}`}
+            >
+              New ({newLeads.length})
+            </button>
+            <button
+              onClick={() => { setViewTab('archived'); setSelectedLeads(new Set()); }}
+              className={`px-4 py-2 text-xs uppercase tracking-wider transition-all border-b-2 ${viewTab === 'archived' ? 'text-accent border-accent' : 'text-white/40 border-transparent hover:text-white/60'}`}
+            >
+              Archived ({archivedLeads.length})
+            </button>
+          </div>
+
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm uppercase tracking-wider text-white/40">{leads.length} Leads Found</h2>
+            <h2 className="text-sm uppercase tracking-wider text-white/40">
+              {visibleLeads.length} {viewTab === 'archived' ? 'Archived' : 'New'} Lead{visibleLeads.length !== 1 ? 's' : ''}
+            </h2>
             <div className="flex gap-2">
               <button onClick={handleDownloadXlsx} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
                 Download Spreadsheet
@@ -420,12 +509,24 @@ export default function ProspectorPage() {
                 Clear Results
               </button>
               <button onClick={selectAll} className="text-xs text-white/40 hover:text-white/60 px-3 py-1.5">
-                {selectedLeads.size === leads.length ? 'Deselect All' : 'Select All'}
+                Select All
               </button>
-              {selectedLeads.size > 0 && (
-                <button onClick={() => handleAddToPipeline(Array.from(selectedLeads))} disabled={adding}
-                  className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40">
-                  {adding ? 'Adding...' : `Add ${selectedLeads.size} to Pipeline`}
+              {selectedLeads.size > 0 && viewTab === 'new' && (
+                <>
+                  <button onClick={archiveSelected}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
+                    Archive {selectedLeads.size}
+                  </button>
+                  <button onClick={() => handleAddToPipeline(Array.from(selectedLeads))} disabled={adding}
+                    className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40">
+                    {adding ? 'Adding...' : `Add ${selectedLeads.size} to Pipeline`}
+                  </button>
+                </>
+              )}
+              {selectedLeads.size > 0 && viewTab === 'archived' && (
+                <button onClick={unarchiveSelected}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
+                  Unarchive {selectedLeads.size}
                 </button>
               )}
             </div>
@@ -436,7 +537,7 @@ export default function ProspectorPage() {
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left py-3 px-2 text-white/30 font-medium w-8">
-                    <input type="checkbox" checked={selectedLeads.size === leads.length && leads.length > 0} onChange={selectAll} className="accent-cyan-500" />
+                    <input type="checkbox" checked={visibleLeads.length > 0 && visibleLeads.every(l => selectedLeads.has(leads.indexOf(l)))} onChange={selectAll} className="accent-cyan-500" />
                   </th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">ID</th>
                   <th className="text-left py-3 px-2 text-white/30 font-medium">Business Name</th>
@@ -453,10 +554,12 @@ export default function ProspectorPage() {
                 </tr>
               </thead>
               <tbody>
-                {leads.map((lead, i) => {
+                {visibleLeads.map((lead) => {
+                  const i = leads.indexOf(lead);
                   const isSelected = selectedLeads.has(i);
                   const isExpanded = expandedLead === i;
                   const wasAdded = addResult?.results?.find((r: any) => r.businessName === lead.businessName);
+                  const isArchived = archivedKeys.has(leadKey(lead));
 
                   return (
                     <tr key={i} className={`border-b border-white/5 hover:bg-white/5 transition-all ${isSelected ? 'bg-accent/5' : ''}`}>
@@ -494,9 +597,16 @@ export default function ProspectorPage() {
                         <span className={`px-1.5 py-0.5 rounded ${SCORE_BADGE[lead.scoreLabel] || ''}`}>{lead.leadScore}</span>
                       </td>
                       <td className="py-3 px-2">
-                        {!wasAdded && (
-                          <button onClick={() => handleAddToPipeline([i])} disabled={adding} className="text-accent/60 hover:text-accent">+</button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!wasAdded && !isArchived && (
+                            <button onClick={() => handleAddToPipeline([i])} disabled={adding} className="text-accent/60 hover:text-accent" title="Add to pipeline">+</button>
+                          )}
+                          {isArchived ? (
+                            <button onClick={() => unarchiveLead(lead)} className="text-white/30 hover:text-white/70 text-[11px]" title="Unarchive">↺</button>
+                          ) : (
+                            <button onClick={() => archiveLead(lead)} className="text-white/30 hover:text-white/70 text-[11px]" title="Archive">✓</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -608,7 +718,8 @@ export default function ProspectorPage() {
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

@@ -7,7 +7,10 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get('clientId');
     const status = searchParams.get('status');
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      // Hide websites belonging to soft-deleted clients
+      client: { deletedAt: null },
+    };
     if (clientId) where.clientId = clientId;
     if (status) where.status = status;
 

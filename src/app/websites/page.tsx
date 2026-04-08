@@ -95,6 +95,17 @@ export default function WebsitesPage() {
     setLinkingGithubId(null); fetchWebsites();
   };
 
+  const handleDelete = async (websiteId: string, url: string) => {
+    if (!confirm(`Delete website "${url}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/websites/${websiteId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      setWebsites(prev => prev.filter(w => w.id !== websiteId));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete website');
+    }
+  };
+
   const handleRefreshScreenshot = async (websiteId: string) => {
     setRefreshingScreenshot(websiteId);
     try {
@@ -271,6 +282,13 @@ export default function WebsitesPage() {
                     <Link href={`/proposals`} className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-[11px] hover:bg-white/10 transition-all">Create Proposal</Link>
                   )}
                   <a href={w.url.startsWith('http') ? w.url : `https://${w.url}`} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-lg bg-white/5 text-white/30 text-[11px] hover:bg-white/10 transition-all ml-auto">Open ↗</a>
+                  <button
+                    onClick={(e) => { e.preventDefault(); handleDelete(w.id, w.url); }}
+                    className="px-2 py-1.5 rounded-lg bg-red-400/10 text-red-400/70 text-[11px] hover:bg-red-400/20 hover:text-red-400 transition-all"
+                    title="Delete website"
+                  >
+                    ✕
+                  </button>
                 </div>
 
                 {/* Netlify linking modal */}
