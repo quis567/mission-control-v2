@@ -102,7 +102,7 @@ export default function PortalDashboard() {
               />
             </a>
           )}
-          <div className="p-4">
+          <div className="px-4 pt-4 pb-6">
             <div className="flex items-center justify-between">
               <div className="min-w-0">
                 <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Your website</p>
