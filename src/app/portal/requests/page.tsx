@@ -60,29 +60,30 @@ export default function PortalRequests() {
 
       {/* Request stats */}
       {stats && (
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          <div className="glass rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-blue-400">{stats.openRequests}</p>
-            <p className="text-[11px] text-white/40 uppercase tracking-wide">Open</p>
-          </div>
-          <div className="glass rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{stats.completedRequests}</p>
-            <p className="text-[11px] text-white/40 uppercase tracking-wide">Completed</p>
-          </div>
-          <div className="glass rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-white/60">{stats.totalRequests}</p>
-            <p className="text-[11px] text-white/40 uppercase tracking-wide">Total</p>
+        <>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="glass rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-blue-400">{stats.openRequests}</p>
+              <p className="text-[11px] text-white/40 uppercase tracking-wide">Open</p>
+            </div>
+            <div className="glass rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-emerald-400">{stats.completedRequests}</p>
+              <p className="text-[11px] text-white/40 uppercase tracking-wide">Completed</p>
+            </div>
+            <div className="glass rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-white/60">{stats.totalRequests}</p>
+              <p className="text-[11px] text-white/40 uppercase tracking-wide">Total</p>
+            </div>
           </div>
           {stats.slug && (
             <a
               href={`/request/${stats.slug}`}
-              className="rounded-xl p-4 text-center bg-accent text-black font-semibold hover:brightness-110 transition-all flex flex-col items-center justify-center"
+              className="block w-full py-3 rounded-xl bg-accent text-black font-semibold text-center hover:brightness-110 transition-all mb-6"
             >
-              <p className="text-2xl font-bold leading-none">+</p>
-              <p className="text-[11px] uppercase tracking-wide mt-1">Submit</p>
+              Submit a New Request
             </a>
           )}
-        </div>
+        </>
       )}
 
       {/* Filters */}
