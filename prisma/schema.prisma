@@ -168,8 +168,111 @@ model Client {
   changeRequests       ChangeRequest[]
   magicLinks           ClientMagicLink[]
   portalSessions       ClientPortalSession[]
+  leadSubmissions      LeadSubmission[]
+  healthSnapshots      HealthSnapshot[]
+  gbpConnection        GbpConnection?
+  gbpSnapshots         GbpSnapshot[]
+
+  // Client portal feature config
+  leadWebhookKey       String?  @unique @map("lead_webhook_key")
+  gbpPlaceId           String?  @map("gbp_place_id")
+  googleReviewUrl      String?  @map("google_review_url")
 
   @@map("clients")
+}
+
+// ==========================================
+// Client Portal: Website Health
+// ==========================================
+
+model HealthSnapshot {
+  id                 String   @id @default(uuid())
+  clientId           String   @map("client_id")
+  url                String
+  uptime             Boolean?
+  httpStatus         Int?     @map("http_status")
+  responseTimeMs     Int?     @map("response_time_ms")
+  pagespeedMobile    Int?     @map("pagespeed_mobile")
+  pagespeedDesktop   Int?     @map("pagespeed_desktop")
+  lcpMs              Int?     @map("lcp_ms")
+  clsScore           Float?   @map("cls_score")
+  inpMs              Int?     @map("inp_ms")
+  sslValid           Boolean? @map("ssl_valid")
+  sslExpiresAt       DateTime? @map("ssl_expires_at")
+  sslIssuer          String?  @map("ssl_issuer")
+  netlifyState       String?  @map("netlify_state")
+  netlifyDeployedAt  DateTime? @map("netlify_deployed_at")
+  raw                String?  // JSON — full API responses for debugging
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@map("health_snapshots")
+}
+
+// ==========================================
+// Client Portal: Lead Tracking
+// ==========================================
+
+model LeadSubmission {
+  id         String   @id @default(uuid())
+  clientId   String   @map("client_id")
+  name       String?
+  email      String?
+  phone      String?
+  subject    String?
+  message    String?
+  source     String?  // form name, URL, or "unknown"
+  pageUrl    String?  @map("page_url")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  meta       String?  // JSON — extra fields
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@map("lead_submissions")
+}
+
+// ==========================================
+// Client Portal: Google Business Profile
+// ==========================================
+
+model GbpConnection {
+  id            String   @id @default(uuid())
+  clientId      String   @unique @map("client_id")
+  accountId     String?  @map("account_id")
+  locationId    String?  @map("location_id")
+  locationName  String?  @map("location_name")
+  accessToken   String   @map("access_token")
+  refreshToken  String   @map("refresh_token")
+  expiresAt     DateTime @map("expires_at")
+  scope         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("gbp_connections")
+}
+
+model GbpSnapshot {
+  id              String   @id @default(uuid())
+  clientId        String   @map("client_id")
+  rating          Float?
+  reviewCount     Int?     @map("review_count")
+  newReviewsMonth Int?     @map("new_reviews_month")
+  recentReviews   String?  @map("recent_reviews") // JSON array
+  raw             String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@map("gbp_snapshots")
 }
 
 model ClientNote {

@@ -4,6 +4,14 @@
     {
       "path": "/api/clients/trash/purge",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/admin/health/refresh",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/admin/gbp/refresh",
+      "schedule": "0 7 * * *"
     }
   ]
 }

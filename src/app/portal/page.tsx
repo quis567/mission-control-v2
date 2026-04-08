@@ -19,13 +19,51 @@ export default function PortalDashboard() {
   const { client, loading: authLoading, logout } = usePortalAuth();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
+  const [health, setHealth] = useState<any>(null);
+  const [leads, setLeads] = useState<any>(null);
+  const [gbp, setGbp] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingHealth, setRefreshingHealth] = useState(false);
+  const [refreshingGbp, setRefreshingGbp] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
-    const res = await portalFetch('/api/portal/dashboard');
-    if (res.ok) setData(await res.json());
+    const [dashRes, healthRes, leadsRes, gbpRes] = await Promise.all([
+      portalFetch('/api/portal/dashboard'),
+      portalFetch('/api/portal/health'),
+      portalFetch('/api/portal/leads'),
+      portalFetch('/api/portal/gbp'),
+    ]);
+    if (dashRes.ok) setData(await dashRes.json());
+    if (healthRes.ok) setHealth(await healthRes.json());
+    if (leadsRes.ok) setLeads(await leadsRes.json());
+    if (gbpRes.ok) setGbp(await gbpRes.json());
     setLoading(false);
   }, []);
+
+  const refreshHealth = async () => {
+    setRefreshingHealth(true);
+    const res = await portalFetch('/api/portal/health', { method: 'POST' });
+    if (res.ok) setHealth(await res.json());
+    setRefreshingHealth(false);
+  };
+
+  const refreshGbp = async () => {
+    setRefreshingGbp(true);
+    const res = await portalFetch('/api/portal/gbp', { method: 'POST' });
+    if (res.ok) {
+      const snap = await res.json();
+      setGbp((prev: any) => ({ ...(prev || {}), snapshot: snap.snapshot }));
+    }
+    setRefreshingGbp(false);
+  };
+
+  const connectGbp = async () => {
+    const res = await portalFetch('/api/portal/gbp/connect');
+    if (res.ok) {
+      const { url } = await res.json();
+      window.location.href = url;
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -133,6 +171,221 @@ export default function PortalDashboard() {
           )}
           {data.seo.score === null && (
             <p className="text-xs text-white/30 mt-3 text-center">Awaiting first SEO scan</p>
+          )}
+        </div>
+      )}
+
+      {/* Website Health */}
+      {health?.snapshot && (
+        <div className="glass rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-white/40 uppercase tracking-wider">Website Health</p>
+            <button
+              onClick={refreshHealth}
+              disabled={refreshingHealth}
+              className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
+            >
+              {refreshingHealth ? 'Checking…' : 'Refresh'}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-white/40">Status</p>
+              <p className={`text-sm font-semibold ${health.snapshot.uptime ? 'text-emerald-400' : 'text-red-400'}`}>
+                {health.snapshot.uptime ? '● Online' : '● Offline'}
+                {health.snapshot.httpStatus ? ` (${health.snapshot.httpStatus})` : ''}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-white/40">Response</p>
+              <p className="text-sm font-semibold text-white">
+                {health.snapshot.responseTimeMs ? `${health.snapshot.responseTimeMs}ms` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-white/40">Mobile Score</p>
+              <p className={`text-sm font-semibold ${
+                (health.snapshot.pagespeedMobile ?? 0) >= 90 ? 'text-emerald-400' :
+                (health.snapshot.pagespeedMobile ?? 0) >= 50 ? 'text-amber-400' : 'text-red-400'
+              }`}>
+                {health.snapshot.pagespeedMobile ?? '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-white/40">Desktop Score</p>
+              <p className={`text-sm font-semibold ${
+                (health.snapshot.pagespeedDesktop ?? 0) >= 90 ? 'text-emerald-400' :
+                (health.snapshot.pagespeedDesktop ?? 0) >= 50 ? 'text-amber-400' : 'text-red-400'
+              }`}>
+                {health.snapshot.pagespeedDesktop ?? '—'}
+              </p>
+            </div>
+          </div>
+          <div className="pt-3 border-t border-white/5 grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="text-white/40">SSL: </span>
+              <span className={health.snapshot.sslValid ? 'text-emerald-400' : 'text-red-400'}>
+                {health.snapshot.sslValid ? 'Valid' : 'Invalid'}
+              </span>
+              {health.snapshot.sslExpiresAt && (
+                <span className="text-white/30"> · expires {new Date(health.snapshot.sslExpiresAt).toLocaleDateString()}</span>
+              )}
+            </div>
+            {health.snapshot.netlifyDeployedAt && (
+              <div>
+                <span className="text-white/40">Last deploy: </span>
+                <span className="text-white/60">{new Date(health.snapshot.netlifyDeployedAt).toLocaleDateString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {!health?.snapshot && (
+        <div className="glass rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-white/40 uppercase tracking-wider">Website Health</p>
+            <button
+              onClick={refreshHealth}
+              disabled={refreshingHealth}
+              className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
+            >
+              {refreshingHealth ? 'Running first check…' : 'Run first check'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Leads / Form Submissions */}
+      {leads && (
+        <div className="glass rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-white/40 uppercase tracking-wider">Leads</p>
+            {leads.submissions.length > 0 && (
+              <a
+                href="/api/portal/leads?format=csv"
+                className="text-xs text-cyan-400 hover:text-cyan-300"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const token = localStorage.getItem('portal_token');
+                  const link = document.createElement('a');
+                  link.href = '/api/portal/leads?format=csv';
+                  fetch('/api/portal/leads?format=csv', { headers: { 'x-portal-token': token || '' } })
+                    .then((r) => r.blob())
+                    .then((b) => {
+                      const url = URL.createObjectURL(b);
+                      link.href = url;
+                      link.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                    });
+                }}
+              >
+                Export CSV
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-2xl font-bold text-white">{leads.stats.thisMonth}</p>
+              <p className="text-xs text-white/40">This month</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white/60">{leads.stats.lastMonth}</p>
+              <p className="text-xs text-white/40">Last month</p>
+            </div>
+          </div>
+          {leads.submissions.length === 0 ? (
+            <p className="text-xs text-white/30 text-center py-3">No leads captured yet</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {leads.submissions.slice(0, 5).map((l: any) => (
+                <div key={l.id} className="text-xs border-b border-white/5 pb-2 last:border-0">
+                  <div className="flex justify-between">
+                    <span className="text-white font-medium truncate pr-2">{l.name || 'Anonymous'}</span>
+                    <span className="text-white/30 shrink-0">{new Date(l.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  {(l.email || l.phone) && (
+                    <p className="text-white/50 truncate">{[l.email, l.phone].filter(Boolean).join(' · ')}</p>
+                  )}
+                  {l.message && <p className="text-white/40 line-clamp-2 mt-1">{l.message}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Google Business Profile */}
+      {gbp && (
+        <div className="glass rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-white/40 uppercase tracking-wider">Google Reviews</p>
+            {(gbp.connected || gbp.placeId) && (
+              <button
+                onClick={refreshGbp}
+                disabled={refreshingGbp}
+                className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
+              >
+                {refreshingGbp ? 'Refreshing…' : 'Refresh'}
+              </button>
+            )}
+          </div>
+          {!gbp.connected && !gbp.placeId && (
+            <div className="text-center py-3">
+              <p className="text-xs text-white/40 mb-2">Connect your Google Business Profile to see reviews here.</p>
+              <button
+                onClick={connectGbp}
+                className="text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+              >
+                Connect Google
+              </button>
+            </div>
+          )}
+          {gbp.snapshot && (
+            <>
+              <div className="flex items-center gap-4 mb-3">
+                <div>
+                  <p className="text-3xl font-bold text-amber-400">
+                    {gbp.snapshot.rating != null ? Number(gbp.snapshot.rating).toFixed(1) : '—'}
+                  </p>
+                  <p className="text-xs text-white/40">{gbp.snapshot.reviewCount ?? 0} reviews</p>
+                </div>
+                {gbp.snapshot.newReviewsMonth != null && (
+                  <div>
+                    <p className="text-xl font-semibold text-emerald-400">+{gbp.snapshot.newReviewsMonth}</p>
+                    <p className="text-xs text-white/40">new this month</p>
+                  </div>
+                )}
+              </div>
+              {(() => {
+                try {
+                  const recent = JSON.parse(gbp.snapshot.recentReviews || '[]');
+                  return recent.length > 0 ? (
+                    <div className="space-y-2 pt-3 border-t border-white/5">
+                      {recent.slice(0, 3).map((r: any, i: number) => (
+                        <div key={i} className="text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-white font-medium">{r.author}</span>
+                            <span className="text-amber-400">{'★'.repeat(r.rating)}</span>
+                          </div>
+                          {r.text && <p className="text-white/50 line-clamp-2 mt-1">{r.text}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null;
+                } catch { return null; }
+              })()}
+              {gbp.reviewUrl && (
+                <a
+                  href={gbp.reviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center text-xs text-cyan-400 hover:text-cyan-300 mt-3"
+                >
+                  Respond to reviews →
+                </a>
+              )}
+            </>
           )}
         </div>
       )}
