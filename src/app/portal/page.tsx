@@ -90,19 +90,37 @@ export default function PortalDashboard() {
         <button onClick={logout} className="text-xs text-white/30 hover:text-white/50 transition-colors">Sign out</button>
       </div>
 
-      {/* Website URL card — hero */}
+      {/* Website hero card with screenshot */}
       {data.website && (
-        <div className="glass rounded-xl p-4 mb-8">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Your website</p>
-              <a href={data.website.url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-sm hover:text-cyan-300 transition-colors truncate block">
-                {data.website.url}
-              </a>
+        <div className="glass rounded-xl overflow-hidden mb-8">
+          {data.website.screenshotUrl && (
+            <a
+              href={data.website.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block aspect-[16/9] bg-white/5 overflow-hidden border-b border-white/5"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.website.screenshotUrl}
+                alt={`${data.businessName} website screenshot`}
+                className="w-full h-full object-cover object-top hover:scale-[1.02] transition-transform duration-300"
+                loading="lazy"
+              />
+            </a>
+          )}
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] text-white/30 uppercase tracking-wider mb-0.5">Your website</p>
+                <a href={data.website.url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 text-sm hover:text-cyan-300 transition-colors truncate block">
+                  {data.website.url}
+                </a>
+              </div>
+              <span className={`text-xs font-medium shrink-0 ml-3 ${SITE_STATUS_COLORS[data.website.status] || 'text-white/40'}`}>
+                {data.website.status === 'live' ? '● Live' : data.website.status}
+              </span>
             </div>
-            <span className={`text-xs font-medium shrink-0 ml-3 ${SITE_STATUS_COLORS[data.website.status] || 'text-white/40'}`}>
-              {data.website.status === 'live' ? '● Live' : data.website.status}
-            </span>
           </div>
         </div>
       )}

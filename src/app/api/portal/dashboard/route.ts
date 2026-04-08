@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
         websites: {
           select: {
             url: true, status: true, lastUpdated: true, hostingProvider: true, cmsPlatform: true,
+            screenshotUrl: true, screenshotUpdatedAt: true,
             seoPages: { select: { seoScore: true, issues: true, lastAudited: true, pageUrl: true } },
           },
           take: 1,
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
       businessName: client.businessName,
       contactName: client.contactName,
       slug: client.slug,
-      website: website ? { url: website.url, status: website.status, lastUpdated: website.lastUpdated, hostingProvider: website.hostingProvider, cmsPlatform: website.cmsPlatform } : null,
+      website: website ? { url: website.url, status: website.status, lastUpdated: website.lastUpdated, hostingProvider: website.hostingProvider, cmsPlatform: website.cmsPlatform, screenshotUrl: website.screenshotUrl, screenshotUpdatedAt: website.screenshotUpdatedAt } : null,
       seo,
       openRequests,
       completedRequests,
