@@ -102,7 +102,25 @@ export default function ReportsPage() {
     doc.setFillColor(10, 15, 26);
     doc.rect(0, 0, 210, 297, 'F');
     let y = 25;
+
+    // Metrics strip at the top
+    const m = content.metrics;
+    if (m?.gradeLetter) {
+      doc.setFontSize(10);
+      doc.setTextColor(148, 163, 184);
+      const strip = [
+        `Grade: ${m.gradeLetter} (${m.gradeScore}/100)`,
+        `Leads: ${m.leadsThisMonth ?? 0}`,
+        `Mobile speed: ${m.mobileThis ?? '—'}`,
+        `Uptime: ${m.uptimePct != null ? `${m.uptimePct}%` : '—'}`,
+        `Rating: ${m.currentRating ?? '—'}${m.reviewDelta != null ? ` (+${m.reviewDelta})` : ''}`,
+      ].join('  ·  ');
+      doc.text(strip, 20, y);
+      y += 12;
+    }
+
     if (content.summary) y = addSection('Executive Summary', content.summary, y);
+    if (content.results) y = addSection('Results This Month', content.results, y);
     if (content.seoProgress) y = addSection('SEO Performance', content.seoProgress, y);
     if (content.websiteUpdates) y = addSection('Website Updates', content.websiteUpdates, y);
 
@@ -144,22 +162,60 @@ export default function ReportsPage() {
       </div>
 
       {/* Preview */}
-      {previewReport && (
-        <div className="glass p-6 mb-6 border border-accent/20">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm text-accent">Report Generated — {previewReport.clientName} ({previewReport.month} {previewReport.year})</h2>
-            <div className="flex gap-2">
-              <button onClick={() => handleDownloadPdf({ ...previewReport, content: JSON.stringify(previewReport.content), client: { businessName: previewReport.clientName, package: { name: previewReport.packageName } }, month: selectedMonth, year: selectedYear })} className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-xs">Download PDF</button>
-              <button onClick={() => setPreviewReport(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
+      {previewReport && (() => {
+        const m = previewReport.metrics || previewReport.content?.metrics || {};
+        const gradeColor = m.gradeLetter === 'A' ? 'text-emerald-400'
+          : m.gradeLetter === 'B' ? 'text-cyan-400'
+          : m.gradeLetter === 'C' ? 'text-amber-400'
+          : m.gradeLetter ? 'text-red-400' : 'text-white/40';
+        return (
+          <div className="glass p-6 mb-6 border border-accent/20">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm text-accent">Report Generated — {previewReport.clientName} ({previewReport.month} {previewReport.year})</h2>
+              <div className="flex gap-2">
+                <button onClick={() => handleDownloadPdf({ ...previewReport, content: JSON.stringify(previewReport.content), client: { businessName: previewReport.clientName, package: { name: previewReport.packageName } }, month: selectedMonth, year: selectedYear })} className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-xs">Download PDF</button>
+                <button onClick={() => setPreviewReport(null)} className="text-xs text-white/30 hover:text-white/60">Dismiss</button>
+              </div>
+            </div>
+
+            {m.gradeLetter && (
+              <div className="flex items-start gap-6 mb-4 pb-4 border-b border-white/5">
+                <div className="text-center">
+                  <p className={`text-5xl font-bold ${gradeColor}`}>{m.gradeLetter}</p>
+                  <p className="text-xs text-white/30 mt-1">Overall ({m.gradeScore}/100)</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-1">
+                  <div>
+                    <p className="text-lg font-semibold text-white">{m.leadsThisMonth ?? 0}</p>
+                    <p className="text-[11px] text-white/40 uppercase tracking-wide">Leads{m.leadsLastMonth != null ? ` (was ${m.leadsLastMonth})` : ''}</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-white">{m.mobileThis ?? '—'}</p>
+                    <p className="text-[11px] text-white/40 uppercase tracking-wide">Mobile Speed</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-white">{m.uptimePct != null ? `${m.uptimePct}%` : '—'}</p>
+                    <p className="text-[11px] text-white/40 uppercase tracking-wide">Uptime</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-amber-400">{m.currentRating ?? '—'}{m.reviewDelta != null ? <span className="text-xs text-emerald-400 ml-1">+{m.reviewDelta}</span> : null}</p>
+                    <p className="text-[11px] text-white/40 uppercase tracking-wide">Rating ({m.reviewCountNow ?? 0})</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="text-sm text-white/60">{previewReport.content?.summary}</p>
+            {previewReport.content?.results && (
+              <p className="text-sm text-white/50 mt-2">{previewReport.content.results}</p>
+            )}
+            <div className="flex gap-4 mt-3 text-xs text-white/30">
+              <span>{previewReport.seoChangesCount} SEO changes</span>
+              <span>{previewReport.tasksCompletedCount} tasks completed</span>
             </div>
           </div>
-          <p className="text-sm text-white/60">{previewReport.content?.summary}</p>
-          <div className="flex gap-4 mt-2 text-xs text-white/30">
-            <span>{previewReport.seoChangesCount} SEO changes</span>
-            <span>{previewReport.tasksCompletedCount} tasks completed</span>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Active Clients for Report Generation */}
       <h2 className="text-sm uppercase tracking-wider text-white/40 mb-4">Active Clients</h2>

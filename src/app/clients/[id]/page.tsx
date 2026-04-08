@@ -10,7 +10,7 @@ import LinkCard from '@/components/LinkCard';
 import NoteTimeline from '@/components/NoteTimeline';
 import { PageLoader } from '@/components/Spinner';
 
-const TABS = ['Overview', 'Websites', 'Services', 'Notes', 'Links'];
+const TABS = ['Overview', 'Websites', 'Services', 'Notes', 'Links', 'Content Ideas'];
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -115,6 +115,7 @@ export default function ClientDetailPage() {
       {activeTab === 'Services' && <ServicesTab clientId={clientId} services={client.services || []} onRefresh={fetchClient} />}
       {activeTab === 'Notes' && <NotesTab clientId={clientId} notes={client.notes || []} onRefresh={fetchClient} />}
       {activeTab === 'Links' && <LinksTab clientId={clientId} links={client.links || []} onRefresh={fetchClient} />}
+      {activeTab === 'Content Ideas' && <ContentIdeasTab clientId={clientId} client={client} />}
 
       <CreateTaskModal
         isOpen={showTaskModal}
@@ -602,6 +603,102 @@ function LinksTab({ clientId, links, onRefresh }: { clientId: string; links: any
         <div className="space-y-3">
           {links.map((l: any) => (
             <LinkCard key={l.id} link={l} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const INTENT_COLORS: Record<string, string> = {
+  informational: 'text-blue-400',
+  commercial: 'text-amber-400',
+  transactional: 'text-emerald-400',
+};
+
+function ContentIdeasTab({ clientId, client }: { clientId: string; client: any }) {
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/content-suggestions`, { method: 'POST' });
+      if (!res.ok) {
+        setError(`Error: ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      setSuggestions(data.suggestions || []);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const niche = client.businessType || 'local service business';
+  const location = [client.city, client.state].filter(Boolean).join(', ') || 'N/A';
+
+  return (
+    <div className="space-y-4">
+      <div className="glass p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Content Ideas</p>
+            <p className="text-sm text-white/60">
+              Generate 8 blog post ideas tailored to <span className="text-white">{niche}</span> in <span className="text-white">{location}</span>.
+            </p>
+            {(!client.businessType || (!client.city && !client.state)) && (
+              <p className="text-xs text-amber-400/80 mt-2">
+                Tip: add a business type and city/state in Edit to get more targeted suggestions.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={generate}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40 shrink-0 ml-4"
+          >
+            {loading ? 'Generating…' : suggestions.length ? 'Regenerate' : 'Generate Ideas'}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="glass p-4 border border-red-400/20 text-red-400 text-sm">{error}</div>
+      )}
+
+      {suggestions.length === 0 && !loading && !error && (
+        <div className="glass p-8 text-center text-white/30 text-sm">
+          No suggestions yet. Click &quot;Generate Ideas&quot; to get blog post topics tailored to this client.
+        </div>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="space-y-3">
+          {suggestions.map((s: any, i: number) => (
+            <div key={i} className="glass p-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h3 className="text-sm font-medium text-white flex-1">{s.title}</h3>
+                {s.intent && (
+                  <span className={`text-[10px] uppercase tracking-wider ${INTENT_COLORS[s.intent] || 'text-white/40'} shrink-0`}>
+                    {s.intent}
+                  </span>
+                )}
+              </div>
+              {s.keyword && (
+                <p className="text-xs text-cyan-400/70 mb-2">
+                  <span className="text-white/30">Target keyword: </span>
+                  {s.keyword}
+                </p>
+              )}
+              {s.rationale && (
+                <p className="text-xs text-white/50">{s.rationale}</p>
+              )}
+            </div>
           ))}
         </div>
       )}
