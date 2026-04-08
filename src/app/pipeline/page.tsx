@@ -20,6 +20,9 @@ export default function PipelinePage() {
   const [noteModal, setNoteModal] = useState<{ clientId: string; businessName: string } | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [taskModal, setTaskModal] = useState<{ clientId: string; businessName: string } | null>(null);
+  const [activateModal, setActivateModal] = useState<{ clientId: string; businessName: string; hasEmail: boolean; alreadySent: boolean } | null>(null);
+  const [activating, setActivating] = useState(false);
+  const [activateMessage, setActivateMessage] = useState<string | null>(null);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -38,8 +41,51 @@ export default function PipelinePage() {
   }), [clients]);
 
   const handleDrop = async (clientId: string, newStatus: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    // Intercept moves INTO 'active' so we can prompt about the welcome email.
+    // Other moves go straight through.
+    if (newStatus === 'active' && client.status !== 'active') {
+      setActivateModal({
+        clientId,
+        businessName: client.businessName,
+        hasEmail: !!client.email,
+        alreadySent: !!client.onboardingEmailSentAt,
+      });
+      return;
+    }
+
     setClients(prev => prev.map(c => c.id === clientId ? { ...c, status: newStatus, statusChangedAt: new Date().toISOString() } : c));
     await fetch(`/api/clients/${clientId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
+  };
+
+  const handleActivate = async (sendWelcome: boolean) => {
+    if (!activateModal) return;
+    setActivating(true);
+    try {
+      const res = await fetch(`/api/clients/${activateModal.clientId}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendWelcome }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClients(prev => prev.map(c => c.id === activateModal.clientId
+          ? { ...c, status: 'active', statusChangedAt: new Date().toISOString(), onboardingEmailSentAt: data.emailSent ? new Date().toISOString() : c.onboardingEmailSentAt }
+          : c
+        ));
+        const parts: string[] = [`${activateModal.businessName} activated`];
+        if (data.emailSent) parts.push('welcome email sent');
+        else if (sendWelcome && data.emailSkippedReason) parts.push(`email skipped (${data.emailSkippedReason})`);
+        if (data.tasksCreated > 0) parts.push(`${data.tasksCreated} onboarding tasks created`);
+        setActivateMessage(parts.join(' · '));
+        setTimeout(() => setActivateMessage(null), 5000);
+      }
+    } catch { /* */ } finally {
+      setActivating(false);
+      setActivateModal(null);
+    }
   };
 
   const handleQuickAction = (clientId: string, action: 'note' | 'task') => {
@@ -134,6 +180,63 @@ export default function PipelinePage() {
 
       {taskModal && (
         <CreateTaskModal isOpen={true} onClose={() => setTaskModal(null)} onCreated={() => { setTaskModal(null); fetchClients(); }} defaultClientId={taskModal.clientId} defaultTitle={`[${taskModal.businessName}] `} />
+      )}
+
+      {/* Activate Client Modal */}
+      {activateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !activating && setActivateModal(null)} />
+          <div className="glass-elevated p-6 w-full max-w-md relative z-10">
+            <h2 className="text-base font-medium text-white/90 mb-2">Activate {activateModal.businessName}?</h2>
+            <p className="text-xs text-white/50 mb-4 leading-relaxed">
+              This will mark the client as active and create an onboarding checklist (11 tasks) on their profile.
+            </p>
+
+            <div className="glass-subtle p-3 mb-4 text-xs">
+              <p className="text-white/70 mb-1.5 font-medium">Send welcome email?</p>
+              <p className="text-white/40 leading-relaxed">
+                Includes a one-click login link to their portal and instructions for submitting change requests.
+              </p>
+              {!activateModal.hasEmail && (
+                <p className="text-amber-400/80 mt-2">⚠ No email address on file — email cannot be sent.</p>
+              )}
+              {activateModal.alreadySent && (
+                <p className="text-amber-400/80 mt-2">⚠ A welcome email was already sent previously. Sending again will create a new login link.</p>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setActivateModal(null)}
+                disabled={activating}
+                className="px-3 py-1.5 rounded-lg border border-white/15 text-white/50 text-xs hover:bg-white/5 transition-all disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleActivate(false)}
+                disabled={activating}
+                className="px-3 py-1.5 rounded-lg border border-white/15 text-white/60 text-xs hover:bg-white/5 transition-all disabled:opacity-40"
+              >
+                Activate without email
+              </button>
+              <button
+                onClick={() => handleActivate(true)}
+                disabled={activating || !activateModal.hasEmail}
+                className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40"
+              >
+                {activating ? 'Activating...' : 'Activate & send welcome'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activation Toast */}
+      {activateMessage && (
+        <div className="fixed bottom-6 right-6 z-50 glass-elevated px-4 py-3 border border-emerald-400/30 bg-emerald-400/10 text-emerald-400 text-xs max-w-md">
+          ✓ {activateMessage}
+        </div>
       )}
     </div>
   );

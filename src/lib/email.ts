@@ -121,6 +121,72 @@ export async function sendRequestComplete(client: {
   });
 }
 
+// Email 4: Welcome / onboarding (to client)
+export async function sendOnboardingEmail(client: {
+  contactName: string | null;
+  businessName: string;
+  email: string | null;
+}, loginUrl: string) {
+  if (!client.email) return;
+
+  const html = emailWrapper(`
+    <h2 style="margin:0 0 16px;color:#111;font-size:20px;">Welcome to TruePath Studios</h2>
+    <p style="color:#444;margin:0 0 16px;font-size:14px;line-height:1.6;">
+      Hi ${client.contactName || 'there'},
+    </p>
+    <p style="color:#444;margin:0 0 16px;font-size:14px;line-height:1.6;">
+      Thanks for choosing TruePath Studios to handle ${client.businessName}'s website. We're excited to get started. This email has everything you need to know about working with us.
+    </p>
+
+    <h3 style="margin:28px 0 10px;color:#111;font-size:15px;">Your client portal</h3>
+    <p style="color:#444;margin:0 0 16px;font-size:14px;line-height:1.6;">
+      You have your own portal where you can view your site, track its health, see SEO reports, and request edits any time. Click the button below to log in — no password needed.
+    </p>
+    <p style="margin:20px 0;text-align:center;">
+      <a href="${loginUrl}" style="display:inline-block;background:#06b6d4;color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:600;">Open My Portal</a>
+    </p>
+    <p style="color:#777;margin:0 0 20px;font-size:12px;line-height:1.6;text-align:center;">
+      This login link is active for 30 days. After that, you can request a new one from the login page any time.
+    </p>
+
+    <h3 style="margin:28px 0 10px;color:#111;font-size:15px;">How to submit website edits</h3>
+    <p style="color:#444;margin:0 0 12px;font-size:14px;line-height:1.6;">
+      Any time you want something changed on your site — new photos, updated hours, a fresh promo, a typo fix — head to your portal and submit a request:
+    </p>
+    <ol style="color:#444;margin:0 0 16px;padding-left:20px;font-size:14px;line-height:1.8;">
+      <li>Log in to your portal (button above)</li>
+      <li>Click the <strong>Requests</strong> tab</li>
+      <li>Hit <strong>Submit New Request</strong> and tell us what to change and where</li>
+    </ol>
+    <p style="color:#444;margin:0 0 16px;font-size:14px;line-height:1.6;">
+      You'll get an email confirmation as soon as we receive it, and another when it's live. Most edits are completed within <strong>24–48 hours</strong>. Urgent changes are handled same day.
+    </p>
+
+    <h3 style="margin:28px 0 10px;color:#111;font-size:15px;">What happens next</h3>
+    <p style="color:#444;margin:0 0 16px;font-size:14px;line-height:1.6;">
+      Now that you're onboarded, we'll be in touch shortly to collect anything we need to get your site built or updated — logos, photos, copy, brand colors, that kind of thing. If you have any of that ready to share, feel free to reply to this email with it attached.
+    </p>
+
+    <h3 style="margin:28px 0 10px;color:#111;font-size:15px;">Questions?</h3>
+    <p style="color:#444;margin:0 0 20px;font-size:14px;line-height:1.6;">
+      Just reply to this email. It goes straight to us and we'll get back to you fast.
+    </p>
+
+    <p style="color:#444;margin:24px 0 0;font-size:14px;">
+      Welcome aboard,<br/>
+      <strong>TruePath Studios</strong>
+    </p>
+  `);
+
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: client.email,
+    replyTo: REPLY_TO,
+    subject: `Welcome to TruePath Studios — here's how everything works`,
+    html,
+  });
+}
+
 // Email 3: New request alert (to admin)
 export async function sendAdminNewRequest(client: {
   businessName: string;

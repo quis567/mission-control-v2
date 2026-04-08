@@ -178,6 +178,9 @@ model Client {
   gbpPlaceId           String?  @map("gbp_place_id")
   googleReviewUrl      String?  @map("google_review_url")
 
+  // Onboarding tracking
+  onboardingEmailSentAt DateTime? @map("onboarding_email_sent_at")
+
   @@map("clients")
 }
 
