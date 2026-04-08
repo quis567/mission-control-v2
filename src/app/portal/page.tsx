@@ -131,6 +131,14 @@ export default function PortalDashboard() {
       <div className="flex items-center gap-3 mb-3">
         <h2 className="text-xs text-white/50 uppercase tracking-[0.15em] font-semibold">Your Website</h2>
         <div className="flex-1 h-px bg-white/5" />
+        {data.slug && (
+          <a
+            href={`/request/${data.slug}`}
+            className="text-xs px-3 py-1.5 rounded-lg bg-accent text-black font-semibold hover:brightness-110 transition-all shrink-0"
+          >
+            + Submit Request
+          </a>
+        )}
       </div>
 
       {/* SEO snapshot */}
@@ -427,10 +435,18 @@ export default function PortalDashboard() {
       <div className="flex items-center gap-3 mb-3">
         <h2 className="text-xs text-white/50 uppercase tracking-[0.15em] font-semibold">Your Requests</h2>
         <div className="flex-1 h-px bg-white/5" />
+        {data.slug && (
+          <a
+            href={`/request/${data.slug}`}
+            className="text-xs px-3 py-1.5 rounded-lg bg-accent text-black font-semibold hover:brightness-110 transition-all shrink-0"
+          >
+            + Submit Request
+          </a>
+        )}
       </div>
 
       {/* Request stats */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="glass rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-blue-400">{data.openRequests}</p>
           <p className="text-[11px] text-white/40 uppercase tracking-wide">Open</p>
@@ -444,16 +460,6 @@ export default function PortalDashboard() {
           <p className="text-[11px] text-white/40 uppercase tracking-wide">Total</p>
         </div>
       </div>
-
-      {/* Quick action */}
-      {data.slug && (
-        <a
-          href={`/request/${data.slug}`}
-          className="block w-full py-3 rounded-xl bg-accent text-black font-semibold text-center hover:brightness-110 transition-all mb-4"
-        >
-          Submit a New Request
-        </a>
-      )}
 
       {/* Recent activity */}
       <div>
