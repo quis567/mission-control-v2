@@ -30,12 +30,14 @@ const STATUS_COLORS: Record<string, string> = {
   new: 'bg-blue-400/15 text-blue-400',
   'in_progress': 'bg-amber-400/15 text-amber-400',
   complete: 'bg-emerald-400/15 text-emerald-400',
+  archived: 'bg-white/10 text-white/30',
 };
 
 const STATUS_LABELS: Record<string, string> = {
   new: 'New',
   'in_progress': 'In Progress',
   complete: 'Complete',
+  archived: 'Archived',
 };
 
 export default function RequestsDashboard() {
@@ -47,18 +49,24 @@ export default function RequestsDashboard() {
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<'active' | 'archive'>('active');
 
   const fetchRequests = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (filterStatus) params.set('status', filterStatus);
-    if (filterPriority) params.set('priority', filterPriority);
-
-    const res = await fetch(`/api/change-requests?${params}`);
+    const res = await fetch('/api/change-requests');
     if (res.ok) setRequests(await res.json());
     setLoading(false);
-  }, [filterStatus, filterPriority]);
+  }, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  const activeRequests = requests.filter(r => r.status !== 'archived');
+  const archivedRequests = requests.filter(r => r.status === 'archived');
+
+  const displayRequests = tab === 'archive' ? archivedRequests : activeRequests.filter(r => {
+    if (filterStatus && r.status !== filterStatus) return false;
+    if (filterPriority && r.priority !== filterPriority) return false;
+    return true;
+  });
 
   const updateStatus = async (id: string, status: string) => {
     setSaving(true);
@@ -102,11 +110,11 @@ export default function RequestsDashboard() {
     setCopied(false);
   };
 
-  // Stats
-  const newCount = requests.filter(r => r.status === 'new').length;
-  const inProgressCount = requests.filter(r => r.status === 'in_progress').length;
-  const completeCount = requests.filter(r => r.status === 'complete').length;
-  const urgentCount = requests.filter(r => r.priority === 'urgent' && r.status !== 'complete').length;
+  // Stats (active only)
+  const newCount = activeRequests.filter(r => r.status === 'new').length;
+  const inProgressCount = activeRequests.filter(r => r.status === 'in_progress').length;
+  const completeCount = activeRequests.filter(r => r.status === 'complete').length;
+  const urgentCount = activeRequests.filter(r => r.priority === 'urgent' && r.status !== 'complete').length;
 
   if (loading) return <PageLoader text="Loading requests..." />;
 
@@ -133,38 +141,56 @@ export default function RequestsDashboard() {
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3">
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400/50"
+      {/* Active / Archive Tabs */}
+      <div className="flex gap-1">
+        <button
+          onClick={() => { setTab('active'); setFilterStatus(''); setFilterPriority(''); }}
+          className={`px-4 py-2 rounded-xl text-sm transition-all ${tab === 'active' ? 'glass-active text-accent' : 'text-white/40 hover:bg-white/5'}`}
         >
-          <option value="" className="bg-[#1a1a2e]">All statuses</option>
-          <option value="new" className="bg-[#1a1a2e]">New</option>
-          <option value="in_progress" className="bg-[#1a1a2e]">In Progress</option>
-          <option value="complete" className="bg-[#1a1a2e]">Complete</option>
-        </select>
-        <select
-          value={filterPriority}
-          onChange={e => setFilterPriority(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400/50"
+          Active <span className="text-xs text-white/20 ml-1">{activeRequests.length}</span>
+        </button>
+        <button
+          onClick={() => { setTab('archive'); setFilterStatus(''); setFilterPriority(''); }}
+          className={`px-4 py-2 rounded-xl text-sm transition-all ${tab === 'archive' ? 'glass-active text-accent' : 'text-white/40 hover:bg-white/5'}`}
         >
-          <option value="" className="bg-[#1a1a2e]">All priorities</option>
-          <option value="normal" className="bg-[#1a1a2e]">Normal</option>
-          <option value="urgent" className="bg-[#1a1a2e]">Urgent</option>
-        </select>
+          Archive <span className="text-xs text-white/20 ml-1">{archivedRequests.length}</span>
+        </button>
       </div>
 
+      {/* Filters (active tab only) */}
+      {tab === 'active' && (
+        <div className="flex gap-3">
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400/50"
+          >
+            <option value="" className="bg-[#1a1a2e]">All statuses</option>
+            <option value="new" className="bg-[#1a1a2e]">New</option>
+            <option value="in_progress" className="bg-[#1a1a2e]">In Progress</option>
+            <option value="complete" className="bg-[#1a1a2e]">Complete</option>
+          </select>
+          <select
+            value={filterPriority}
+            onChange={e => setFilterPriority(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400/50"
+          >
+            <option value="" className="bg-[#1a1a2e]">All priorities</option>
+            <option value="normal" className="bg-[#1a1a2e]">Normal</option>
+            <option value="urgent" className="bg-[#1a1a2e]">Urgent</option>
+          </select>
+        </div>
+      )}
+
       {/* Request list */}
-      {requests.length === 0 ? (
+      {displayRequests.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center">
-          <p className="text-white/40">No change requests yet</p>
-          <p className="text-white/25 text-sm mt-1">Requests will appear here when clients submit them</p>
+          <p className="text-white/40">{tab === 'archive' ? 'No archived requests' : 'No change requests yet'}</p>
+          <p className="text-white/25 text-sm mt-1">{tab === 'archive' ? 'Completed requests you archive will appear here' : 'Requests will appear here when clients submit them'}</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {requests.map(req => (
+          {displayRequests.map(req => (
             <button
               key={req.id}
               onClick={() => openDetail(req)}
@@ -249,6 +275,7 @@ export default function RequestsDashboard() {
                     <option value="new" className="bg-[#1a1a2e]">New</option>
                     <option value="in_progress" className="bg-[#1a1a2e]">In Progress</option>
                     <option value="complete" className="bg-[#1a1a2e]">Complete</option>
+                    <option value="archived" className="bg-[#1a1a2e]">Archived</option>
                   </select>
                 </div>
               </div>
@@ -332,7 +359,7 @@ export default function RequestsDashboard() {
 
             {/* Action buttons */}
             <div className="flex gap-3 pt-2 border-t border-white/5">
-              {selectedRequest.status !== 'complete' && (
+              {selectedRequest.status !== 'complete' && selectedRequest.status !== 'archived' && (
                 <button
                   onClick={() => updateStatus(selectedRequest.id, 'complete')}
                   disabled={saving}
@@ -348,6 +375,23 @@ export default function RequestsDashboard() {
                   className="px-4 py-2 rounded-xl bg-amber-500/20 text-amber-400 text-sm font-medium hover:bg-amber-500/30 transition-all disabled:opacity-40"
                 >
                   Start Working
+                </button>
+              )}
+              {selectedRequest.status === 'archived' ? (
+                <button
+                  onClick={() => updateStatus(selectedRequest.id, 'complete')}
+                  disabled={saving}
+                  className="px-4 py-2 rounded-xl bg-white/10 text-white/60 text-sm font-medium hover:bg-white/15 transition-all disabled:opacity-40"
+                >
+                  Restore
+                </button>
+              ) : (
+                <button
+                  onClick={() => { updateStatus(selectedRequest.id, 'archived'); setSelectedRequest(null); }}
+                  disabled={saving}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-white/30 text-sm font-medium hover:bg-white/10 hover:text-white/50 transition-all disabled:opacity-40 ml-auto"
+                >
+                  Archive
                 </button>
               )}
             </div>
