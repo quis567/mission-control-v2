@@ -10,7 +10,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const data: Record<string, unknown> = {};
     if (body.status !== undefined) data.status = body.status;
     if (body.internalNotes !== undefined) data.internalNotes = body.internalNotes;
-    if (body.status === 'complete') data.completedAt = new Date();
+    if (body.status === 'complete') {
+      data.completedAt = new Date();
+      data.status = 'archived';
+    }
 
     const updated = await prisma.changeRequest.update({
       where: { id },
@@ -22,7 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     });
 
-    // Send completion email to client when marked complete
+    // Send completion email to client when marked complete then auto-archived
     if (body.status === 'complete') {
       sendRequestComplete(
         { contactName: updated.client.contactName, email: updated.client.email, websiteUrl: updated.client.websites[0]?.url },

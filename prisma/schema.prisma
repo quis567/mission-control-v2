@@ -554,3 +554,44 @@ model ApiKey {
 
   @@map("api_keys")
 }
+
+// ==========================================
+// Notification System
+// ==========================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   // "audit_submission", extensible later
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  leadId    String?  @map("lead_id")
+  actionUrl String?  @map("action_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([read, createdAt])
+  @@map("notifications")
+}
+
+// ==========================================
+// Free Website Audit System
+// ==========================================
+
+model AuditSubmission {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  businessName String   @map("business_name")
+  websiteUrl   String   @map("website_url")
+  results      String?  // JSON — full audit results
+  emailSubject String?  @map("email_subject")
+  emailBody    String?  @map("email_body")
+  leadId       String?  @map("lead_id")
+  status       String   @default("pending") // pending, completed, emailed
+  sentAt       DateTime? @map("sent_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("audit_submissions")
+}
