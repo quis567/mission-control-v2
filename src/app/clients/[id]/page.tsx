@@ -270,23 +270,116 @@ function OverviewTab({ client, onRefresh }: { client: any; onRefresh: () => void
         <p className="text-2xl font-light mt-2 text-amber-400">{client._count?.tasks || 0}</p>
       </div>
       {client.tasks?.length > 0 && (
+        <TaskChecklist tasks={client.tasks} onRefresh={onRefresh} />
+      )}
+    </div>
+  );
+}
+
+const ONBOARDING_TITLES = [
+  'Collect brand assets', 'Gather website content', 'Confirm domain access',
+  'Set up GitHub repo', 'Set up Netlify site', 'Design mockups / wireframes',
+  'Send mockups to client for approval', 'Build website',
+  'Pre-launch QA (mobile, forms, SEO, speed)', 'Launch website & point DNS',
+  'Post-launch check-in with client',
+];
+
+function TaskChecklist({ tasks, onRefresh }: { tasks: any[]; onRefresh: () => void }) {
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const onboarding = tasks.filter((t: any) => ONBOARDING_TITLES.includes(t.title));
+  const other = tasks.filter((t: any) => !ONBOARDING_TITLES.includes(t.title));
+  const completedCount = onboarding.filter((t: any) => t.status === 'completed').length;
+
+  const toggleTask = async (taskId: string, currentStatus: string) => {
+    setToggling(taskId);
+    const newStatus = currentStatus === 'completed' ? 'inbox' : 'completed';
+    await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    setToggling(null);
+    onRefresh();
+  };
+
+  return (
+    <>
+      {onboarding.length > 0 && (
         <div className="col-span-3">
-          <h3 className="text-sm text-white/40 uppercase tracking-wider mb-3">Recent Tasks</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm text-white/40 uppercase tracking-wider">Onboarding Checklist</h3>
+            <span className="text-xs text-white/30">{completedCount}/{onboarding.length} complete</span>
+          </div>
+          <div className="glass p-4 mb-2">
+            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
+              <div
+                className="h-full bg-accent rounded-full transition-all duration-500"
+                style={{ width: `${onboarding.length > 0 ? (completedCount / onboarding.length) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="space-y-1">
+              {onboarding.map((t: any) => {
+                const done = t.status === 'completed';
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => toggleTask(t.id, t.status)}
+                    disabled={toggling === t.id}
+                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-all text-left group"
+                  >
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${done ? 'bg-accent/20 border-accent' : 'border-white/20 group-hover:border-white/40'}`}>
+                      {done && (
+                        <svg className="w-3 h-3 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <span className={`text-xs transition-all ${done ? 'text-white/30 line-through' : 'text-white/70'}`}>{t.title}</span>
+                      {t.description && <p className={`text-[10px] mt-0.5 ${done ? 'text-white/15' : 'text-white/30'}`}>{t.description}</p>}
+                    </div>
+                    {toggling === t.id && <span className="text-[10px] text-white/20 ml-auto">...</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+      {other.length > 0 && (
+        <div className="col-span-3">
+          <h3 className="text-sm text-white/40 uppercase tracking-wider mb-3">Tasks</h3>
           <div className="space-y-2">
-            {client.tasks.map((t: any) => (
-              <Link key={t.id} href={`/tasks/${t.id}`}>
-                <div className="glass-subtle p-3 hover:bg-white/10 transition-all duration-200 cursor-pointer">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/70">{t.title}</span>
-                    <span className="text-xs text-white/30">{t.status}</span>
+            {other.map((t: any) => (
+              <div key={t.id} className="flex items-center gap-3">
+                <button
+                  onClick={() => toggleTask(t.id, t.status)}
+                  disabled={toggling === t.id}
+                  className="shrink-0"
+                >
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${t.status === 'completed' ? 'bg-accent/20 border-accent' : 'border-white/20 hover:border-white/40'}`}>
+                    {t.status === 'completed' && (
+                      <svg className="w-3 h-3 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    )}
                   </div>
-                </div>
-              </Link>
+                </button>
+                <Link href={`/tasks/${t.id}`} className="flex-1 min-w-0">
+                  <div className="glass-subtle p-3 hover:bg-white/10 transition-all duration-200 cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs ${t.status === 'completed' ? 'text-white/30 line-through' : 'text-white/70'}`}>{t.title}</span>
+                      <span className="text-xs text-white/30">{t.status}</span>
+                    </div>
+                  </div>
+                </Link>
+              </div>
             ))}
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
