@@ -289,6 +289,7 @@ export default function SeoDashboardPage() {
     const headingIssues: string[] = [];
     const linkIssues: string[] = [];
     const canonicalIssues: string[] = [];
+    const schemaIssues: string[] = [];
     const otherIssues: string[] = [];
 
     for (const pg of pages) {
@@ -312,6 +313,8 @@ export default function SeoDashboardPage() {
           linkIssues.push(`\`${pathOnly}\``);
         } else if (txt.includes('canonical')) {
           canonicalIssues.push(`\`${pathOnly}\``);
+        } else if (txt.includes('schema') || txt.includes('Schema') || txt.includes('structured data') || txt.includes('LocalBusiness') || txt.includes('BreadcrumbList') || txt.includes('JSON-LD')) {
+          schemaIssues.push(line);
         } else {
           otherIssues.push(line);
         }
@@ -339,6 +342,9 @@ export default function SeoDashboardPage() {
     if (canonicalIssues.length) {
       const uniquePages = [...new Set(canonicalIssues)];
       prompt += `## Add Canonical URLs\nThese pages are missing canonical link tags:\n${uniquePages.map(p => `- ${p}`).join('\n')}\nFor Next.js sites, add \`metadataBase\` and \`alternates: { canonical: "./" }\` to the layout metadata. For static HTML, add \`<link rel="canonical" href="...">\` to each page's \`<head>\`.\n\n`;
+    }
+    if (schemaIssues.length) {
+      prompt += `## Add Schema Markup (Structured Data)\n${schemaIssues.join('\n')}\nAdd JSON-LD structured data in a \`<script type="application/ld+json">\` block in the \`<head>\` of each page. At minimum include LocalBusiness (or Organization) schema with name, address, phone, url, and openingHours. For multi-page sites add BreadcrumbList schema. Use the business name "${bizName}"${bizType ? ` (type: ${bizType})` : ''} and the site URL ${siteUrl}.\n\n`;
     }
     if (otherIssues.length) {
       prompt += `## Other Issues\n${otherIssues.join('\n')}\n\n`;
@@ -966,7 +972,7 @@ export default function SeoDashboardPage() {
                   prompt += `- [${issue.importance}] ${issue.issue}\n`;
                 }
 
-                prompt += `\n## Score breakdown:\n- Meta: ${p.metaScore || 0}% | Quality: ${p.qualityScore || 0}% | Structure: ${p.structureScore || 0}% | Links: ${p.linkScore || 0}% | Server: ${p.serverScore || 0}%\n`;
+                prompt += `\n## Score breakdown:\n- Meta: ${p.metaScore || 0}% | Quality: ${p.qualityScore || 0}% | Structure: ${p.structureScore || 0}% | Links: ${p.linkScore || 0}% | Server: ${p.serverScore || 0}% | Schema: ${(() => { try { const cd = JSON.parse(p.crawlData || '{}'); return cd.schema?.schemaScore || 0; } catch { return 0; } })()}%\n`;
 
                 // Add specific guidance based on scores
                 const guidance: string[] = [];
