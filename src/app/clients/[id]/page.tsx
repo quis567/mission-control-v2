@@ -21,6 +21,28 @@ export default function ClientDetailPage() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [welcomeConfirm, setWelcomeConfirm] = useState(false);
+  const [sendingWelcome, setSendingWelcome] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
+
+  const handleSendWelcome = async () => {
+    setSendingWelcome(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/send-welcome`, { method: 'POST' });
+      if (res.ok) {
+        setWelcomeMessage('Welcome email sent');
+        fetchClient();
+      } else {
+        const data = await res.json();
+        setWelcomeMessage(`Failed: ${data.error}`);
+      }
+    } catch {
+      setWelcomeMessage('Failed to send');
+    }
+    setSendingWelcome(false);
+    setWelcomeConfirm(false);
+    setTimeout(() => setWelcomeMessage(null), 5000);
+  };
 
   const fetchClient = useCallback(async () => {
     const res = await fetch(`/api/clients/${clientId}`);
@@ -57,6 +79,9 @@ export default function ClientDetailPage() {
             {client.monthlyRevenue != null && (
               <p className="text-lg font-light text-emerald-400">${client.monthlyRevenue.toLocaleString()}<span className="text-xs text-white/30">/mo</span></p>
             )}
+            <button onClick={() => setWelcomeConfirm(true)} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all duration-200">
+              {client.onboardingEmailSentAt ? 'Resend Welcome' : 'Send Welcome'}
+            </button>
             <button onClick={() => setShowEditModal(true)} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all duration-200">Edit</button>
             <button onClick={() => setShowTaskModal(true)} className="px-3 py-1.5 rounded-xl bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all duration-200">+ Task</button>
             <a href={`/proposals?clientId=${clientId}`} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all duration-200">Proposal</a>
@@ -131,6 +156,50 @@ export default function ClientDetailPage() {
           onClose={() => setShowEditModal(false)}
           onSaved={() => { setShowEditModal(false); fetchClient(); }}
         />
+      )}
+
+      {welcomeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !sendingWelcome && setWelcomeConfirm(false)} />
+          <div className="glass-elevated p-6 w-full max-w-md relative z-10">
+            <h2 className="text-base font-medium text-white/90 mb-2">
+              {client.onboardingEmailSentAt ? 'Resend welcome email?' : 'Send welcome email?'}
+            </h2>
+            <p className="text-xs text-white/50 mb-2 leading-relaxed">
+              This will send the onboarding email to <span className="text-white/70">{client.email || '(no email on file)'}</span> with a portal login link and instructions for submitting change requests.
+            </p>
+            {client.onboardingEmailSentAt && (
+              <p className="text-xs text-amber-400/80 mb-2">
+                A welcome email was already sent on {new Date(client.onboardingEmailSentAt).toLocaleDateString()}. Sending again will create a new login link.
+              </p>
+            )}
+            {!client.email && (
+              <p className="text-xs text-amber-400/80 mb-2">No email address on file — cannot send.</p>
+            )}
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setWelcomeConfirm(false)}
+                disabled={sendingWelcome}
+                className="px-3 py-1.5 rounded-lg text-white/40 text-xs hover:text-white/60 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendWelcome}
+                disabled={sendingWelcome || !client.email}
+                className="px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent text-xs hover:bg-accent/30 transition-all disabled:opacity-40"
+              >
+                {sendingWelcome ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {welcomeMessage && (
+        <div className="fixed bottom-6 right-6 z-50 glass-elevated px-4 py-3 border border-emerald-400/30 bg-emerald-400/10 text-emerald-400 text-xs max-w-md">
+          {welcomeMessage}
+        </div>
       )}
     </div>
   );

@@ -201,9 +201,12 @@ export default function SeoDashboardPage() {
 
   // Overview aggregate scores
   const overviewScores = useMemo(() => {
-    if (pages.length === 0) return { seoScore: 0, metaScore: 0, qualityScore: 0, structureScore: 0, linkScore: 0, serverScore: 0 };
+    if (pages.length === 0) return { seoScore: 0, metaScore: 0, qualityScore: 0, structureScore: 0, linkScore: 0, serverScore: 0, schemaScore: 0 };
     const avg = (key: string) => Math.round(pages.reduce((s, p) => s + (p[key] || 0), 0) / pages.length);
-    return { seoScore: avg('seoScore'), metaScore: avg('metaScore'), qualityScore: avg('qualityScore'), structureScore: avg('structureScore'), linkScore: avg('linkScore'), serverScore: avg('serverScore') };
+    const schemaAvg = Math.round(pages.reduce((s, p) => {
+      try { const cd = JSON.parse(p.crawlData || '{}'); return s + (cd.schema?.schemaScore || 0); } catch { return s; }
+    }, 0) / pages.length);
+    return { seoScore: avg('seoScore'), metaScore: avg('metaScore'), qualityScore: avg('qualityScore'), structureScore: avg('structureScore'), linkScore: avg('linkScore'), serverScore: avg('serverScore'), schemaScore: schemaAvg };
   }, [pages]);
 
   // ── Handlers ──
@@ -465,12 +468,51 @@ export default function SeoDashboardPage() {
     ];
   }
 
+  function buildSchemaChecks() {
+    if (!p) return [];
+    const schema = crawlData.schema || {};
+    const schemaTypes: string[] = schema.schemaTypes || [];
+    const schemaScripts: { type: string; name?: string }[] = schema.schemaScripts || [];
+    const hasSchema = schema.hasSchema || false;
+    const hasMicrodata = schema.hasMicrodata || false;
+    const microdataTypes: string[] = schema.microdataTypes || [];
+    const hasLocalBusiness = schemaTypes.some((t: string) => /LocalBusiness|Organization|ProfessionalService/i.test(t));
+    const hasBreadcrumb = schemaTypes.some((t: string) => /BreadcrumbList/i.test(t));
+    const hasFAQ = schemaTypes.some((t: string) => /FAQPage/i.test(t));
+
+    const checks: { title: string; importance: string; checks: { label: string; pass: boolean; warn?: boolean }[] }[] = [
+      { title: 'Structured Data Detected', importance: 'important', checks: [
+        { label: hasSchema ? `Found ${schemaTypes.length} schema type(s)` : 'No schema markup found on this page', pass: hasSchema },
+        ...(schemaScripts.length > 0 ? [{ label: 'Uses JSON-LD format (recommended by Google)', pass: true }] : []),
+        ...(hasMicrodata ? [{ label: `Microdata found: ${microdataTypes.join(', ')}${schemaScripts.length === 0 ? ' — consider migrating to JSON-LD' : ''}`, pass: true, warn: schemaScripts.length === 0 }] : []),
+      ]},
+      { title: 'Schema Types Found', importance: 'important', checks: [
+        ...schemaScripts.map((s: { type: string; name?: string }) => ({
+          label: s.name ? `${s.type}: "${s.name}"` : s.type,
+          pass: true,
+        })),
+        ...(schemaTypes.length === 0 ? [{ label: 'No schema types detected — add LocalBusiness or Organization at minimum', pass: false }] : []),
+      ]},
+      { title: 'LocalBusiness / Organization', importance: 'important', checks: [
+        { label: hasLocalBusiness ? 'LocalBusiness or Organization schema present' : 'Missing — critical for local SEO and Google Business integration', pass: hasLocalBusiness },
+      ]},
+      { title: 'BreadcrumbList', importance: 'tip', checks: [
+        { label: hasBreadcrumb ? 'Breadcrumb schema present' : 'No breadcrumb schema — improves search result display', pass: hasBreadcrumb, warn: !hasBreadcrumb },
+      ]},
+      { title: 'FAQPage', importance: 'tip', checks: [
+        { label: hasFAQ ? 'FAQ schema present' : 'No FAQ schema — can earn rich results in search', pass: hasFAQ, warn: !hasFAQ },
+      ]},
+    ];
+    return checks;
+  }
+
   const tabChecks: Record<string, { title: string; importance: string; value?: string; checks: { label: string; pass: boolean; warn?: boolean }[] }[]> = {
     meta: buildMetaChecks(),
     quality: buildQualityChecks(),
     structure: buildStructureChecks(),
     links: buildLinkChecks(),
     server: buildServerChecks(),
+    schema: buildSchemaChecks(),
   };
 
   const tabScores: Record<string, number> = {
@@ -479,6 +521,7 @@ export default function SeoDashboardPage() {
     structure: isOverview ? overviewScores.structureScore : (p?.structureScore || 0),
     links: isOverview ? overviewScores.linkScore : (p?.linkScore || 0),
     server: isOverview ? overviewScores.serverScore : (p?.serverScore || 0),
+    schema: crawlData.schema?.schemaScore || 0,
   };
 
   const tabs = [
@@ -487,6 +530,7 @@ export default function SeoDashboardPage() {
     { id: 'structure', label: 'Page Structure' },
     { id: 'links', label: 'Link Structure' },
     { id: 'server', label: 'Server Config' },
+    { id: 'schema', label: 'Schema Markup' },
   ];
 
   return (
@@ -686,12 +730,13 @@ export default function SeoDashboardPage() {
                         <p className="text-sm text-white/70 truncate">{pathOnly || '/'}</p>
                         <p className="text-xs text-white/30 truncate">{page.pageTitle || 'No title'}</p>
                       </div>
-                      <div className="grid grid-cols-5 gap-3 text-[10px] text-center shrink-0">
+                      <div className="grid grid-cols-6 gap-3 text-[10px] text-center shrink-0">
                         <div><p className="text-white/25">Meta</p><p className={scoreColor(page.metaScore || 0)}>{page.metaScore || 0}%</p></div>
                         <div><p className="text-white/25">Quality</p><p className={scoreColor(page.qualityScore || 0)}>{page.qualityScore || 0}%</p></div>
                         <div><p className="text-white/25">Structure</p><p className={scoreColor(page.structureScore || 0)}>{page.structureScore || 0}%</p></div>
                         <div><p className="text-white/25">Links</p><p className={scoreColor(page.linkScore || 0)}>{page.linkScore || 0}%</p></div>
                         <div><p className="text-white/25">Server</p><p className={scoreColor(page.serverScore || 0)}>{page.serverScore || 0}%</p></div>
+                        <div><p className="text-white/25">Schema</p><p className={scoreColor((() => { try { const cd = JSON.parse(page.crawlData || '{}'); return cd.schema?.schemaScore || 0; } catch { return 0; } })())}>{(() => { try { const cd = JSON.parse(page.crawlData || '{}'); return cd.schema?.schemaScore || 0; } catch { return 0; } })()}%</p></div>
                       </div>
                       <div className="text-right shrink-0 w-16">
                         {pageIssueCount > 0 ? (
@@ -711,8 +756,8 @@ export default function SeoDashboardPage() {
           {isOverview && (
             <div className="mb-6">
               <h2 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-3">Category Averages</h2>
-              <div className="grid grid-cols-5 gap-3">
-                {[{ label: 'Meta Data', score: overviewScores.metaScore }, { label: 'Page Quality', score: overviewScores.qualityScore }, { label: 'Page Structure', score: overviewScores.structureScore }, { label: 'Link Structure', score: overviewScores.linkScore }, { label: 'Server Config', score: overviewScores.serverScore }].map(cat => (
+              <div className="grid grid-cols-6 gap-3">
+                {[{ label: 'Meta Data', score: overviewScores.metaScore }, { label: 'Page Quality', score: overviewScores.qualityScore }, { label: 'Page Structure', score: overviewScores.structureScore }, { label: 'Link Structure', score: overviewScores.linkScore }, { label: 'Server Config', score: overviewScores.serverScore }, { label: 'Schema Markup', score: overviewScores.schemaScore }].map(cat => (
                   <div key={cat.label} className="glass p-4 text-center">
                     <p className={`text-2xl font-light ${scoreColor(cat.score)}`}>{cat.score}%</p>
                     <p className="text-xs text-white/30 mt-1">{cat.label}</p>

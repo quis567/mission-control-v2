@@ -124,6 +124,39 @@ function analyzePage(html: string, pageUrl: string, baseUrl: URL, responseTime: 
   // --- Iframes ---
   const hasIframes = !!$('iframe').length;
 
+  // --- Schema / Structured Data ---
+  const schemaScripts: { type: string; name?: string; raw: string }[] = [];
+  // Reload from raw HTML to get script tags back (we removed them for body text)
+  const $raw = cheerio.load(rawHtml);
+  $raw('script[type="application/ld+json"]').each((_, el) => {
+    const text = $raw(el).html()?.trim();
+    if (!text) return;
+    try {
+      const parsed = JSON.parse(text);
+      const items = Array.isArray(parsed) ? parsed : parsed['@graph'] ? parsed['@graph'] : [parsed];
+      for (const item of items) {
+        if (item['@type']) {
+          const types = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];
+          for (const t of types) {
+            schemaScripts.push({ type: t, name: item.name || item.headline || undefined, raw: JSON.stringify(item).slice(0, 500) });
+          }
+        }
+      }
+    } catch { /* malformed JSON-LD */ }
+  });
+  // Also check for microdata
+  const hasMicrodata = !!$raw('[itemscope][itemtype]').length;
+  const microdataTypes: string[] = [];
+  $raw('[itemscope][itemtype]').each((_, el) => {
+    const itemtype = $raw(el).attr('itemtype');
+    if (itemtype) {
+      const typeName = itemtype.replace('https://schema.org/', '').replace('http://schema.org/', '');
+      if (!microdataTypes.includes(typeName)) microdataTypes.push(typeName);
+    }
+  });
+  const schemaTypes = [...schemaScripts.map(s => s.type), ...microdataTypes];
+  const hasSchema = schemaTypes.length > 0;
+
   // ── Score Calculation (Part D) ──
 
   // Meta Data (25 points → normalized to 0-100)
@@ -180,8 +213,18 @@ function analyzePage(html: string, pageUrl: string, baseUrl: URL, responseTime: 
   serverRaw += 2; // compression (generous)
   const serverScore = Math.round((serverRaw / 15) * 100);
 
-  // Weighted overall
-  const seoScore = Math.round(metaScore * 0.25 + qualityScore * 0.30 + structureScore * 0.15 + linkScore * 0.15 + serverScore * 0.15);
+  // Schema Markup (10 points → 0-100)
+  let schemaRaw = 0;
+  if (hasSchema) schemaRaw += 4;
+  if (schemaScripts.length > 0) schemaRaw += 2; // JSON-LD (preferred format)
+  const hasLocalBusiness = schemaTypes.some(t => /LocalBusiness|Organization|ProfessionalService/i.test(t));
+  if (hasLocalBusiness) schemaRaw += 2;
+  const hasBreadcrumb = schemaTypes.some(t => /BreadcrumbList/i.test(t));
+  if (hasBreadcrumb) schemaRaw += 2;
+  const schemaScore = Math.round((schemaRaw / 10) * 100);
+
+  // Weighted overall (weights sum to 1.0)
+  const seoScore = Math.round(metaScore * 0.22 + qualityScore * 0.28 + structureScore * 0.13 + linkScore * 0.13 + serverScore * 0.13 + schemaScore * 0.11);
 
   // ── Build issues list ──
 
@@ -221,10 +264,19 @@ function analyzePage(html: string, pageUrl: string, baseUrl: URL, responseTime: 
   if (responseTime >= 400) issues.push({ issue: `Slow response time (${responseTime}ms, target <400ms)`, importance: 'important', category: 'server' });
   if (htmlSize >= 100000) issues.push({ issue: `Large HTML file (${Math.round(htmlSize / 1024)}KB, target <100KB)`, importance: 'tip', category: 'server' });
 
+  // Schema issues
+  if (!hasSchema) issues.push({ issue: 'No schema markup (structured data) found', importance: 'important', category: 'schema' });
+  else {
+    if (schemaScripts.length === 0 && hasMicrodata) issues.push({ issue: 'Schema uses Microdata format — JSON-LD is preferred by Google', importance: 'tip', category: 'schema' });
+    if (!hasLocalBusiness) issues.push({ issue: 'No LocalBusiness / Organization schema — important for local SEO', importance: 'important', category: 'schema' });
+    if (!hasBreadcrumb) issues.push({ issue: 'No BreadcrumbList schema — helps search result display', importance: 'tip', category: 'schema' });
+  }
+
   // crawlData: store detailed check info as JSON
   const crawlData = {
     ogTitle, ogDesc, ogImage, twitterTitle, twitterDesc,
     headings, headingHierarchyOk, hasIframes, hasStrongTags,
+    schema: { hasSchema, schemaTypes, schemaScripts, hasMicrodata, microdataTypes, schemaScore },
   };
 
   return {
