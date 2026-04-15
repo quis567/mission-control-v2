@@ -16,14 +16,41 @@ export async function GET(
   });
 }
 
-// PATCH /api/audit/[id] — update email draft
+// PATCH /api/audit/[id] — update email draft and/or design override
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const body = await req.json();
-  const { emailSubject, emailBody } = body;
+  const { emailSubject, emailBody, designOverride } = body;
+
+  // Handle design score override
+  if (designOverride !== undefined) {
+    const existing = await prisma.auditSubmission.findUnique({ where: { id } });
+    if (!existing || !existing.results) {
+      return NextResponse.json({ error: 'Audit not found or has no results' }, { status: 404 });
+    }
+
+    const results = JSON.parse(existing.results);
+    if (results.categoryScores) {
+      const overrideScore = Math.max(0, Math.min(100, Number(designOverride)));
+      results.categoryScores.designElements.score = overrideScore;
+      // Recalculate overall
+      const cats = results.categoryScores;
+      cats.overall = Math.round(
+        (cats.designElements.score + cats.messagingHeadlines.score + cats.seoFoundation.score +
+         cats.conversionElements.score + cats.mobileExperience.score + cats.contentStructure.score) / 6
+      );
+
+      await prisma.auditSubmission.update({
+        where: { id },
+        data: { results: JSON.stringify(results) },
+      });
+
+      return NextResponse.json({ ok: true });
+    }
+  }
 
   const audit = await prisma.auditSubmission.update({
     where: { id },
