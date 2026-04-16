@@ -3,8 +3,8 @@ import { Resend } from 'resend';
 import prisma from '@/lib/db';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_ADDRESS = 'TruePath Studios <updates@truepathstudios.com>';
-const REPLY_TO = process.env.REPLY_TO_EMAIL || 'info@truepathstudios.com';
+const FROM_ADDRESS = process.env.AUDIT_FROM_ADDRESS || 'TruePath Studios <hello@outreach.truepathstudios.com>';
+const REPLY_TO = process.env.AUDIT_REPLY_TO || process.env.REPLY_TO_EMAIL || 'info@truepathstudios.com';
 
 // POST /api/audit/[id]/send — send the audit email to the lead
 export async function POST(
