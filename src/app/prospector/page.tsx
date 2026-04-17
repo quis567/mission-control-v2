@@ -174,6 +174,30 @@ export default function ProspectorPage() {
     setSelectedLeads(new Set());
   };
 
+  const archiveAllVisible = () => {
+    const visible = leads.filter(l => !archivedKeys.has(leadKey(l)));
+    if (visible.length === 0) return;
+    if (!confirm(`Archive all ${visible.length} new lead${visible.length !== 1 ? 's' : ''}?`)) return;
+    setArchivedKeys(prev => {
+      const next = new Set(prev);
+      for (const l of visible) next.add(leadKey(l));
+      return next;
+    });
+    setSelectedLeads(new Set());
+  };
+
+  const unarchiveAllVisible = () => {
+    const visible = leads.filter(l => archivedKeys.has(leadKey(l)));
+    if (visible.length === 0) return;
+    if (!confirm(`Unarchive all ${visible.length} lead${visible.length !== 1 ? 's' : ''}?`)) return;
+    setArchivedKeys(prev => {
+      const next = new Set(prev);
+      for (const l of visible) next.delete(leadKey(l));
+      return next;
+    });
+    setSelectedLeads(new Set());
+  };
+
   const toggleType = (t: string) => setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
   const toggleSelectLead = (i: number) => {
@@ -511,6 +535,18 @@ export default function ProspectorPage() {
               <button onClick={selectAll} className="text-xs text-white/40 hover:text-white/60 px-3 py-1.5">
                 Select All
               </button>
+              {viewTab === 'new' && newLeads.length > 0 && (
+                <button onClick={archiveAllVisible}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
+                  Archive All ({newLeads.length})
+                </button>
+              )}
+              {viewTab === 'archived' && archivedLeads.length > 0 && (
+                <button onClick={unarchiveAllVisible}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10 transition-all">
+                  Unarchive All ({archivedLeads.length})
+                </button>
+              )}
               {selectedLeads.size > 0 && viewTab === 'new' && (
                 <>
                   <button onClick={archiveSelected}
